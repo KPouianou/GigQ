@@ -71,8 +71,13 @@ gigq/
 │   └── github_archive.py       # GitHub Archive processing example
 │
 ├── gigq/                        # Main package code
-│   ├── __init__.py             # Package initialization
-│   ├── core.py                 # Core implementation
+│   ├── __init__.py             # Package initialization and exports
+│   ├── job.py                  # Job class implementation
+│   ├── job_status.py           # JobStatus enum implementation
+│   ├── job_queue.py            # JobQueue class implementation
+│   ├── worker.py               # Worker class implementation
+│   ├── workflow.py             # Workflow class implementation
+│   ├── utils.py                # Utility functions
 │   ├── cli.py                  # Command-line interface
 │   └── table_formatter.py      # Table formatting utilities
 │
@@ -90,7 +95,8 @@ gigq/
 │   │   ├── test_job_queue.py   # JobQueue class tests
 │   │   ├── test_table_formatter.py  # Table formatter tests
 │   │   ├── test_worker.py      # Worker class tests
-│   │   └── test_workflow.py    # Workflow class tests
+│   │   ├── test_workflow.py    # Workflow class tests
+│   │   └── test_refactoring.py # Tests for refactored modules
 │   │
 │   └── integration/            # Integration tests
 │       ├── __init__.py
@@ -112,6 +118,10 @@ gigq/
 │
 ├── LICENSE                      # MIT License
 ├── README.md                    # Project readme
+├── README_REFACTORING.md        # Refactoring documentation
+├── REFACTORING_SUMMARY.md       # Summary of refactoring changes
+├── update_test_imports.py       # Script to update test imports
+├── test_refactoring.py          # Script to test refactored modules
 ├── pyproject.toml               # Project configuration
 ├── setup.py                     # Package setup script
 └── py.typed                     # Type hint marker

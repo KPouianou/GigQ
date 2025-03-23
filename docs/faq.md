@@ -38,12 +38,8 @@ GigQ focuses on simplicity and ease of use for local job processing, while Celer
 
 GigQ has minimal dependencies:
 
-- Python 3.7 or newer
+- Python 3.9 or newer
 - SQLite 3.8.3 or newer (included with Python)
-
-For Python < 3.8, it also requires:
-
-- importlib-metadata >= 1.0
 
 ### How do I install GigQ?
 

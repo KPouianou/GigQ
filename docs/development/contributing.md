@@ -12,7 +12,7 @@ By participating in this project, you agree to adhere to our Code of Conduct. Pl
 
 To contribute to GigQ, you'll need:
 
-1. Python 3.7 or newer
+1. Python 3.9 or newer
 2. Git
 3. A GitHub account
 

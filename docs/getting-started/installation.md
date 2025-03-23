@@ -6,7 +6,7 @@ This guide covers various ways to install GigQ and set up your environment.
 
 GigQ requires:
 
-- Python 3.7 or newer
+- Python 3.9 or newer
 - SQLite 3.8.3 or newer (usually included with Python)
 
 ## Standard Installation
@@ -120,9 +120,7 @@ GigQ has the following dependency categories:
 
 ### Core Dependencies
 
-- Python 3.7+
-- importlib-metadata (for Python < 3.8)
-- tabulate (for CLI formatting)
+- Python 3.9+
 
 ### Example Dependencies [examples]
 

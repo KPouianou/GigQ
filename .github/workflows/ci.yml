@@ -35,7 +35,7 @@ jobs:
     
     - name: Test with pytest
       run: |
-        PYTHONPATH=$PYTHONPATH:$(pwd) pytest tests --cov=gigq --cov-report=xml
+        pytest tests --cov=gigq --cov-report=xml
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3

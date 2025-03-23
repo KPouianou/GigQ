@@ -3,7 +3,7 @@ GigQ: A lightweight job queue system with SQLite backend
 """
 
 # Import directly from gigq package instead of relative import
-from gigq.core import Job, JobQueue, Worker, Workflow, JobStatus
+from gigq import Job, JobQueue, Worker, Workflow, JobStatus
 
 # Get version from installed package
 try:

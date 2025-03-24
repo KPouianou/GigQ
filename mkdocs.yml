@@ -76,6 +76,7 @@ plugins:
 
 nav:
   - Home: index.md
+  - News: news.md
   - Getting Started:
       - Installation: getting-started/installation.md
       - Quick Start: getting-started/quick-start.md
@@ -98,6 +99,7 @@ nav:
       - SQLite Schema: advanced/sqlite-schema.md
       - Concurrency: advanced/concurrency.md
       - Performance: advanced/performance.md
+      - Database Utilities: advanced/db_utils.md
       - Custom Job Types: advanced/custom-job-types.md
   - Development:
       - Contributing: development/contributing.md

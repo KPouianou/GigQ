@@ -28,59 +28,56 @@ For best performance, keep your database file on local SSD storage.
 
 ### Connection Pooling
 
-SQLite connections have overhead. GigQ creates connections as needed, but you can optimize by:
+GigQ uses thread-local storage to efficiently reuse SQLite connections within each thread. This approach respects SQLite's threading model (where connections can only be used in the thread that created them) while improving performance.
 
 ```python
-# Create a shared connection pool
 import sqlite3
 import threading
 
-class ConnectionPool:
-    def __init__(self, db_path, max_connections=5):
-        self.db_path = db_path
-        self.max_connections = max_connections
-        self.connections = []
-        self.lock = threading.Lock()
+# Thread-local storage for connections
+_thread_local = threading.local()
 
-    def get_connection(self):
-        with self.lock:
-            if self.connections:
-                return self.connections.pop()
-            else:
-                conn = sqlite3.connect(self.db_path, timeout=30.0)
-                conn.row_factory = sqlite3.Row
-                return conn
+def get_connection(db_path):
+    """Get a connection from thread-local storage or create a new one."""
+    # Initialize connections dict for this thread if needed
+    if not hasattr(_thread_local, 'connections'):
+        _thread_local.connections = {}
 
-    def release_connection(self, conn):
-        with self.lock:
-            if len(self.connections) < self.max_connections:
-                self.connections.append(conn)
-            else:
-                conn.close()
+    # Get or create connection for this database
+    if db_path not in _thread_local.connections:
+        conn = sqlite3.connect(db_path, timeout=30.0)
+        conn.row_factory = sqlite3.Row
+        _thread_local.connections[db_path] = conn
 
-# Modify JobQueue to use the connection pool
-class OptimizedJobQueue(JobQueue):
-    def __init__(self, db_path, initialize=True, connection_pool=None):
-        self.db_path = db_path
-        self.connection_pool = connection_pool or ConnectionPool(db_path)
-        if initialize:
-            self._initialize_db()
+    return _thread_local.connections[db_path]
 
-    def _get_connection(self):
-        return self.connection_pool.get_connection()
+def close_connection(db_path):
+    """Close the connection for the specified database."""
+    if hasattr(_thread_local, 'connections') and db_path in _thread_local.connections:
+        _thread_local.connections[db_path].close()
+        del _thread_local.connections[db_path]
 
-    def _release_connection(self, conn):
-        self.connection_pool.release_connection(conn)
+def close_connections():
+    """Close all connections for this thread."""
+    if hasattr(_thread_local, 'connections'):
+        for conn in _thread_local.connections.values():
+            conn.close()
+        _thread_local.connections.clear()
+```
 
-    # Override methods to properly release connections
-    def submit(self, job):
-        conn = self._get_connection()
-        try:
-            # Existing implementation
-            result = ...
-            return result
-        finally:
-            self._release_connection(conn)
+This approach provides several benefits:
+
+1. **Performance**: Eliminates the overhead of repeatedly opening and closing connections
+2. **Thread safety**: Each thread only accesses its own connections
+3. **Resource efficiency**: Reduces the number of file handles used
+4. **Simplicity**: No complex connection pool management required
+
+Remember to close connections when threads are done with them:
+
+```python
+# At the end of your application or thread
+from gigq import close_connections
+close_connections()
 ```
 
 ### Index Optimization

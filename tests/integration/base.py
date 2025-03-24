@@ -6,6 +6,7 @@ import os
 import time
 import threading
 from gigq import JobQueue, Worker
+from gigq.db_utils import close_connections
 
 
 class IntegrationTestBase(unittest.TestCase):
@@ -43,5 +44,11 @@ class IntegrationTestBase(unittest.TestCase):
     def tearDown(self):
         """Clean up resources."""
         self.stop_worker()
+
+        # Close connections for the main thread
+        self.queue.close()
+        close_connections()  # Ensure all thread-local connections are closed
+
+        # Remove database file
         os.close(self.db_fd)
         os.unlink(self.db_path)

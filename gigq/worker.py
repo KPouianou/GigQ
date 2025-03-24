@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, Optional
 
 from .job_status import JobStatus
+from .db_utils import get_connection, close_connection
 
 # Configure logging
 logger = logging.getLogger("gigq.worker")
@@ -40,14 +41,18 @@ class Worker:
         self.polling_interval = polling_interval
         self.running = False
         self.current_job_id = None
-        self.conn = None
         self.logger = logging.getLogger(f"gigq.worker.{self.worker_id}")
 
     def _get_connection(self) -> sqlite3.Connection:
-        """Get a connection to the SQLite database with appropriate settings."""
-        conn = sqlite3.connect(self.db_path, timeout=30.0)
-        conn.row_factory = sqlite3.Row
-        return conn
+        """
+        Get a connection to the SQLite database with appropriate settings.
+
+        The connection is cached in thread-local storage for reuse.
+
+        Returns:
+            A SQLite connection.
+        """
+        return get_connection(self.db_path)
 
     def _import_function(self, module_name: str, function_name: str) -> Callable:
         """
@@ -73,6 +78,7 @@ class Worker:
             A job dictionary if a job was claimed, None otherwise.
         """
         conn = self._get_connection()
+
         try:
             # Ensure transaction isolation
             conn.execute("BEGIN EXCLUSIVE TRANSACTION")
@@ -169,8 +175,6 @@ class Worker:
             conn.rollback()
             self.logger.error(f"Database error when claiming job: {e}")
             return None
-        finally:
-            conn.close()
 
     def _complete_job(
         self,
@@ -191,102 +195,97 @@ class Worker:
             error: Error message (if failed).
         """
         conn = self._get_connection()
-        try:
-            now = datetime.now().isoformat()
-            result_json = json.dumps(result) if result is not None else None
+        now = datetime.now().isoformat()
+        result_json = json.dumps(result) if result is not None else None
 
-            with conn:
-                # Update the job
-                conn.execute(
-                    """
-                    UPDATE jobs
-                    SET status = ?, updated_at = ?, completed_at = ?, 
-                        result = ?, error = ?, worker_id = NULL
-                    WHERE id = ?
-                    """,
-                    (status.value, now, now, result_json, error, job_id),
-                )
+        with conn:
+            # Update the job
+            conn.execute(
+                """
+                UPDATE jobs
+                SET status = ?, updated_at = ?, completed_at = ?, 
+                    result = ?, error = ?, worker_id = NULL
+                WHERE id = ?
+                """,
+                (status.value, now, now, result_json, error, job_id),
+            )
 
-                # Update the execution record
-                conn.execute(
-                    """
-                    UPDATE job_executions
-                    SET status = ?, completed_at = ?, result = ?, error = ?
-                    WHERE id = ?
-                    """,
-                    (status.value, now, result_json, error, execution_id),
-                )
-        finally:
-            conn.close()
+            # Update the execution record
+            conn.execute(
+                """
+                UPDATE job_executions
+                SET status = ?, completed_at = ?, result = ?, error = ?
+                WHERE id = ?
+                """,
+                (status.value, now, result_json, error, execution_id),
+            )
 
     def _check_for_timeouts(self):
         """Check for jobs that have timed out and mark them accordingly."""
         conn = self._get_connection()
-        try:
-            with conn:
-                cursor = conn.execute(
-                    """
-                    SELECT j.id, j.timeout, j.started_at, j.worker_id, j.attempts, j.max_attempts
-                    FROM jobs j
-                    WHERE j.status = ?
-                    """,
-                    (JobStatus.RUNNING.value,),
-                )
 
-                running_jobs = cursor.fetchall()
-                now = datetime.now()
+        with conn:
+            cursor = conn.execute(
+                """
+                SELECT j.id, j.timeout, j.started_at, j.worker_id, j.attempts, j.max_attempts
+                FROM jobs j
+                WHERE j.status = ?
+                """,
+                (JobStatus.RUNNING.value,),
+            )
 
-                for job in running_jobs:
-                    if not job["started_at"]:
-                        continue
+            running_jobs = cursor.fetchall()
+            now = datetime.now()
 
-                    started_at = datetime.fromisoformat(job["started_at"])
-                    timeout_seconds = job["timeout"] or 300  # Default 5 minutes
+            for job in running_jobs:
+                if not job["started_at"]:
+                    continue
 
-                    if now - started_at > timedelta(seconds=timeout_seconds):
-                        # Job has timed out
-                        status = (
-                            JobStatus.PENDING
-                            if job["attempts"] < job["max_attempts"]
-                            else JobStatus.TIMEOUT
-                        )
+                started_at = datetime.fromisoformat(job["started_at"])
+                timeout_seconds = job["timeout"] or 300  # Default 5 minutes
 
-                        self.logger.warning(
-                            f"Job {job['id']} timed out after {timeout_seconds} seconds"
-                        )
+                if now - started_at > timedelta(seconds=timeout_seconds):
+                    # Job has timed out
+                    status = (
+                        JobStatus.PENDING
+                        if job["attempts"] < job["max_attempts"]
+                        else JobStatus.TIMEOUT
+                    )
 
-                        conn.execute(
-                            """
-                            UPDATE jobs
-                            SET status = ?, updated_at = ?, worker_id = NULL,
-                                error = ?
-                            WHERE id = ?
-                            """,
-                            (
-                                status.value,
-                                now.isoformat(),
-                                f"Job timed out after {timeout_seconds} seconds",
-                                job["id"],
-                            ),
-                        )
+                    self.logger.warning(
+                        f"Job {job['id']} timed out after {timeout_seconds} seconds"
+                    )
 
-                        # Also update any execution records
-                        conn.execute(
-                            """
-                            UPDATE job_executions
-                            SET status = ?, completed_at = ?, error = ?
-                            WHERE job_id = ? AND status = ?
-                            """,
-                            (
-                                JobStatus.TIMEOUT.value,
-                                now.isoformat(),
-                                f"Job timed out after {timeout_seconds} seconds",
-                                job["id"],
-                                JobStatus.RUNNING.value,
-                            ),
-                        )
-        finally:
-            conn.close()
+                    conn.execute(
+                        """
+                        UPDATE jobs
+                        SET status = ?, updated_at = ?, worker_id = NULL,
+                            error = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            status.value,
+                            now.isoformat(),
+                            f"Job timed out after {timeout_seconds} seconds",
+                            job["id"],
+                        ),
+                    )
+
+                    # Also update any execution records
+                    conn.execute(
+                        """
+                        UPDATE job_executions
+                        SET status = ?, completed_at = ?, error = ?
+                        WHERE job_id = ? AND status = ?
+                        """,
+                        (
+                            JobStatus.TIMEOUT.value,
+                            now.isoformat(),
+                            f"Job timed out after {timeout_seconds} seconds",
+                            job["id"],
+                            JobStatus.RUNNING.value,
+                        ),
+                    )
 
     def process_one(self) -> bool:
         """
@@ -332,30 +331,27 @@ class Worker:
             if job["attempts"] < job["max_attempts"]:
                 # We'll retry
                 conn = self._get_connection()
-                try:
-                    with conn:
-                        now = datetime.now().isoformat()
-                        conn.execute(
-                            """
-                            UPDATE jobs
-                            SET status = ?, updated_at = ?, worker_id = NULL,
-                                error = ?
-                            WHERE id = ?
-                            """,
-                            (JobStatus.PENDING.value, now, str(e), job_id),
-                        )
+                with conn:
+                    now = datetime.now().isoformat()
+                    conn.execute(
+                        """
+                        UPDATE jobs
+                        SET status = ?, updated_at = ?, worker_id = NULL,
+                            error = ?
+                        WHERE id = ?
+                        """,
+                        (JobStatus.PENDING.value, now, str(e), job_id),
+                    )
 
-                        # Update the execution record
-                        conn.execute(
-                            """
-                            UPDATE job_executions
-                            SET status = ?, completed_at = ?, error = ?
-                            WHERE id = ?
-                            """,
-                            (JobStatus.FAILED.value, now, str(e), execution_id),
-                        )
-                finally:
-                    conn.close()
+                    # Update the execution record
+                    conn.execute(
+                        """
+                        UPDATE job_executions
+                        SET status = ?, completed_at = ?, error = ?
+                        WHERE id = ?
+                        """,
+                        (JobStatus.FAILED.value, now, str(e), execution_id),
+                    )
             else:
                 # Max retries reached
                 self._complete_job(job_id, execution_id, JobStatus.FAILED, error=str(e))
@@ -388,8 +384,13 @@ class Worker:
                     time.sleep(self.polling_interval)
         finally:
             self.logger.info(f"Worker {self.worker_id} stopped")
+            close_connection(self.db_path)
 
     def stop(self):
         """Stop the worker process."""
         self.running = False
         self.logger.info(f"Worker {self.worker_id} stopping")
+
+    def close(self):
+        """Close the database connection used by this worker."""
+        close_connection(self.db_path)

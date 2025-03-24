@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from .job import Job
 from .job_status import JobStatus
+from .db_utils import get_connection, close_connection
 
 # Configure logging
 logger = logging.getLogger("gigq.job_queue")
@@ -91,13 +92,17 @@ class JobQueue:
         )
 
         conn.commit()
-        conn.close()
 
     def _get_connection(self) -> sqlite3.Connection:
-        """Get a connection to the SQLite database with appropriate settings."""
-        conn = sqlite3.connect(self.db_path, timeout=30.0)
-        conn.row_factory = sqlite3.Row
-        return conn
+        """
+        Get a connection to the SQLite database with appropriate settings.
+
+        The connection is cached in thread-local storage for reuse.
+
+        Returns:
+            A SQLite connection.
+        """
+        return get_connection(self.db_path)
 
     def submit(self, job: Job) -> str:
         """
@@ -110,45 +115,43 @@ class JobQueue:
             The ID of the submitted job.
         """
         conn = self._get_connection()
-        try:
-            # Store function as module and name for later import
-            function_module = job.function.__module__
-            function_name = job.function.__name__
 
-            now = datetime.now().isoformat()
+        # Store function as module and name for later import
+        function_module = job.function.__module__
+        function_name = job.function.__name__
 
-            # Insert the job into the database
-            with conn:
-                conn.execute(
-                    """
-                    INSERT INTO jobs (
-                        id, name, function_name, function_module, params, priority,
-                        dependencies, max_attempts, timeout, description, status,
-                        created_at, updated_at, attempts
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        job.id,
-                        job.name,
-                        function_name,
-                        function_module,
-                        json.dumps(job.params),
-                        job.priority,
-                        json.dumps(job.dependencies),
-                        job.max_attempts,
-                        job.timeout,
-                        job.description,
-                        JobStatus.PENDING.value,
-                        job.created_at,
-                        now,
-                        0,
-                    ),
-                )
+        now = datetime.now().isoformat()
 
-            logger.info(f"Job submitted: {job.id} ({job.name})")
-            return job.id
-        finally:
-            conn.close()
+        # Insert the job into the database
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO jobs (
+                    id, name, function_name, function_module, params, priority,
+                    dependencies, max_attempts, timeout, description, status,
+                    created_at, updated_at, attempts
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    job.id,
+                    job.name,
+                    function_name,
+                    function_module,
+                    json.dumps(job.params),
+                    job.priority,
+                    json.dumps(job.dependencies),
+                    job.max_attempts,
+                    job.timeout,
+                    job.description,
+                    JobStatus.PENDING.value,
+                    job.created_at,
+                    now,
+                    0,
+                ),
+            )
+
+        logger.info(f"Job submitted: {job.id} ({job.name})")
+        return job.id
 
     def cancel(self, job_id: str) -> bool:
         """
@@ -161,28 +164,26 @@ class JobQueue:
             True if the job was cancelled, False if it couldn't be cancelled.
         """
         conn = self._get_connection()
-        try:
-            with conn:
-                cursor = conn.execute(
-                    "UPDATE jobs SET status = ?, updated_at = ? WHERE id = ? AND status = ?",
-                    (
-                        JobStatus.CANCELLED.value,
-                        datetime.now().isoformat(),
-                        job_id,
-                        JobStatus.PENDING.value,
-                    ),
-                )
 
-            if cursor.rowcount > 0:
-                logger.info(f"Job cancelled: {job_id}")
-                return True
-            else:
-                logger.warning(
-                    f"Could not cancel job {job_id}, it may be already running or completed"
-                )
-                return False
-        finally:
-            conn.close()
+        with conn:
+            cursor = conn.execute(
+                "UPDATE jobs SET status = ?, updated_at = ? WHERE id = ? AND status = ?",
+                (
+                    JobStatus.CANCELLED.value,
+                    datetime.now().isoformat(),
+                    job_id,
+                    JobStatus.PENDING.value,
+                ),
+            )
+
+        if cursor.rowcount > 0:
+            logger.info(f"Job cancelled: {job_id}")
+            return True
+        else:
+            logger.warning(
+                f"Could not cancel job {job_id}, it may be already running or completed"
+            )
+            return False
 
     def get_status(self, job_id: str) -> Dict[str, Any]:
         """
@@ -195,40 +196,38 @@ class JobQueue:
             A dictionary containing the job's status and related information.
         """
         conn = self._get_connection()
-        try:
-            cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
-            job_data = cursor.fetchone()
 
-            if not job_data:
-                return {"exists": False}
+        cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        job_data = cursor.fetchone()
 
-            result = dict(job_data)
+        if not job_data:
+            return {"exists": False}
 
-            # Deserialize JSON fields
-            if result["params"]:
-                result["params"] = json.loads(result["params"])
-            if result["dependencies"]:
-                result["dependencies"] = json.loads(result["dependencies"])
-            if result["result"]:
-                result["result"] = json.loads(result["result"])
+        result = dict(job_data)
 
-            result["exists"] = True
+        # Deserialize JSON fields
+        if result["params"]:
+            result["params"] = json.loads(result["params"])
+        if result["dependencies"]:
+            result["dependencies"] = json.loads(result["dependencies"])
+        if result["result"]:
+            result["result"] = json.loads(result["result"])
 
-            # Get execution history
-            cursor = conn.execute(
-                "SELECT * FROM job_executions WHERE job_id = ? ORDER BY started_at ASC",
-                (job_id,),
-            )
-            executions = [dict(row) for row in cursor.fetchall()]
-            for execution in executions:
-                if execution["result"]:
-                    execution["result"] = json.loads(execution["result"])
+        result["exists"] = True
 
-            result["executions"] = executions
+        # Get execution history
+        cursor = conn.execute(
+            "SELECT * FROM job_executions WHERE job_id = ? ORDER BY started_at ASC",
+            (job_id,),
+        )
+        executions = [dict(row) for row in cursor.fetchall()]
+        for execution in executions:
+            if execution["result"]:
+                execution["result"] = json.loads(execution["result"])
 
-            return result
-        finally:
-            conn.close()
+        result["executions"] = executions
+
+        return result
 
     def list_jobs(
         self, status: Optional[Union[JobStatus, str]] = None, limit: int = 100
@@ -244,36 +243,34 @@ class JobQueue:
             A list of job dictionaries.
         """
         conn = self._get_connection()
-        try:
-            if status:
-                if isinstance(status, JobStatus):
-                    status = status.value
-                cursor = conn.execute(
-                    "SELECT * FROM jobs WHERE status = ? ORDER BY created_at DESC LIMIT ?",
-                    (status, limit),
-                )
-            else:
-                cursor = conn.execute(
-                    "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
-                )
 
-            results = []
-            for row in cursor.fetchall():
-                job_dict = dict(row)
+        if status:
+            if isinstance(status, JobStatus):
+                status = status.value
+            cursor = conn.execute(
+                "SELECT * FROM jobs WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+                (status, limit),
+            )
+        else:
+            cursor = conn.execute(
+                "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
+            )
 
-                # Deserialize JSON fields
-                if job_dict["params"]:
-                    job_dict["params"] = json.loads(job_dict["params"])
-                if job_dict["dependencies"]:
-                    job_dict["dependencies"] = json.loads(job_dict["dependencies"])
-                if job_dict["result"]:
-                    job_dict["result"] = json.loads(job_dict["result"])
+        results = []
+        for row in cursor.fetchall():
+            job_dict = dict(row)
 
-                results.append(job_dict)
+            # Deserialize JSON fields
+            if job_dict["params"]:
+                job_dict["params"] = json.loads(job_dict["params"])
+            if job_dict["dependencies"]:
+                job_dict["dependencies"] = json.loads(job_dict["dependencies"])
+            if job_dict["result"]:
+                job_dict["result"] = json.loads(job_dict["result"])
 
-            return results
-        finally:
-            conn.close()
+            results.append(job_dict)
+
+        return results
 
     def clear_completed(self, before_timestamp: Optional[str] = None) -> int:
         """
@@ -286,26 +283,24 @@ class JobQueue:
             Number of jobs cleared.
         """
         conn = self._get_connection()
-        try:
-            with conn:
-                if before_timestamp:
-                    cursor = conn.execute(
-                        "DELETE FROM jobs WHERE status IN (?, ?) AND completed_at < ?",
-                        (
-                            JobStatus.COMPLETED.value,
-                            JobStatus.CANCELLED.value,
-                            before_timestamp,
-                        ),
-                    )
-                else:
-                    cursor = conn.execute(
-                        "DELETE FROM jobs WHERE status IN (?, ?)",
-                        (JobStatus.COMPLETED.value, JobStatus.CANCELLED.value),
-                    )
 
-                return cursor.rowcount
-        finally:
-            conn.close()
+        with conn:
+            if before_timestamp:
+                cursor = conn.execute(
+                    "DELETE FROM jobs WHERE status IN (?, ?) AND completed_at < ?",
+                    (
+                        JobStatus.COMPLETED.value,
+                        JobStatus.CANCELLED.value,
+                        before_timestamp,
+                    ),
+                )
+            else:
+                cursor = conn.execute(
+                    "DELETE FROM jobs WHERE status IN (?, ?)",
+                    (JobStatus.COMPLETED.value, JobStatus.CANCELLED.value),
+                )
+
+            return cursor.rowcount
 
     def requeue_job(self, job_id: str) -> bool:
         """
@@ -318,24 +313,26 @@ class JobQueue:
             True if the job was requeued, False if not.
         """
         conn = self._get_connection()
-        try:
-            with conn:
-                cursor = conn.execute(
-                    """
-                    UPDATE jobs
-                    SET status = ?, attempts = 0, error = NULL, updated_at = ?
-                    WHERE id = ? AND status IN (?, ?, ?)
-                    """,
-                    (
-                        JobStatus.PENDING.value,
-                        datetime.now().isoformat(),
-                        job_id,
-                        JobStatus.FAILED.value,
-                        JobStatus.TIMEOUT.value,
-                        JobStatus.CANCELLED.value,
-                    ),
-                )
 
-                return cursor.rowcount > 0
-        finally:
-            conn.close()
+        with conn:
+            cursor = conn.execute(
+                """
+                UPDATE jobs
+                SET status = ?, attempts = 0, error = NULL, updated_at = ?
+                WHERE id = ? AND status IN (?, ?, ?)
+                """,
+                (
+                    JobStatus.PENDING.value,
+                    datetime.now().isoformat(),
+                    job_id,
+                    JobStatus.FAILED.value,
+                    JobStatus.TIMEOUT.value,
+                    JobStatus.CANCELLED.value,
+                ),
+            )
+
+            return cursor.rowcount > 0
+
+    def close(self) -> None:
+        """Close the database connection for this thread."""
+        close_connection(self.db_path)

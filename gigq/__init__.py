@@ -8,6 +8,7 @@ from .job_queue import JobQueue
 from .job_status import JobStatus
 from .worker import Worker
 from .workflow import Workflow
+from .db_utils import close_connections
 
 # Initialize logging with default settings
 from .utils import setup_logging
@@ -29,4 +30,4 @@ except ImportError:
     __version__ = "0.1.1"  # Default development version
 
 # Define what gets imported with "from gigq import *"
-__all__ = ["Job", "JobQueue", "JobStatus", "Worker", "Workflow"]
+__all__ = ["Job", "JobQueue", "JobStatus", "Worker", "Workflow", "close_connections"]

@@ -101,10 +101,14 @@ from gigq import JobQueue
 # Create a job queue
 queue = JobQueue("workflow_jobs.db")
 
-# Submit all jobs in the workflow
-job_ids = workflow.submit_all(queue)
+try:
+    # Submit all jobs in the workflow
+    job_ids = workflow.submit_all(queue)
 
-print(f"Submitted {len(job_ids)} jobs to the queue")
+    print(f"Submitted {len(job_ids)} jobs to the queue")
+finally:
+    # Always close connections when done
+    queue.close()
 ```
 
 This will submit all jobs to the queue with the appropriate dependencies. The workers will then process the jobs in the correct order.
@@ -166,6 +170,8 @@ graph TD
 You can create workflows dynamically based on runtime conditions:
 
 ```python
+from datetime import timedelta
+
 def create_dynamic_workflow(data_source, date_range):
     """Create a workflow based on runtime parameters."""
     workflow = Workflow(f"process_{data_source}_{date_range[0]}_{date_range[1]}")
@@ -206,36 +212,90 @@ def create_dynamic_workflow(data_source, date_range):
 
 ## Monitoring Workflow Progress
 
-To monitor the progress of a workflow:
+To monitor the progress of a workflow with proper connection management:
 
 ```python
-def check_workflow_status(queue, job_ids):
+def check_workflow_status(db_path, job_ids):
     """Check the status of all jobs in a workflow."""
-    statuses = {
-        "pending": 0,
-        "running": 0,
-        "completed": 0,
-        "failed": 0,
-        "cancelled": 0,
-        "timeout": 0
-    }
+    # Create a queue to access the database
+    queue = JobQueue(db_path)
 
-    for job_id in job_ids:
-        status = queue.get_status(job_id)
-        statuses[status["status"]] += 1
+    try:
+        statuses = {
+            "pending": 0,
+            "running": 0,
+            "completed": 0,
+            "failed": 0,
+            "cancelled": 0,
+            "timeout": 0
+        }
 
-    total = len(job_ids)
-    completed_pct = (statuses["completed"] / total) * 100 if total > 0 else 0
+        for job_id in job_ids:
+            status = queue.get_status(job_id)
+            statuses[status["status"]] += 1
 
-    print(f"Workflow Progress: {completed_pct:.1f}% complete")
-    print(f"Pending: {statuses['pending']}")
-    print(f"Running: {statuses['running']}")
-    print(f"Completed: {statuses['completed']}")
-    print(f"Failed: {statuses['failed']}")
-    print(f"Cancelled: {statuses['cancelled']}")
-    print(f"Timeout: {statuses['timeout']}")
+        total = len(job_ids)
+        completed_pct = (statuses["completed"] / total) * 100 if total > 0 else 0
 
-    return statuses
+        print(f"Workflow Progress: {completed_pct:.1f}% complete")
+        print(f"Pending: {statuses['pending']}")
+        print(f"Running: {statuses['running']}")
+        print(f"Completed: {statuses['completed']}")
+        print(f"Failed: {statuses['failed']}")
+        print(f"Cancelled: {statuses['cancelled']}")
+        print(f"Timeout: {statuses['timeout']}")
+
+        return statuses
+    finally:
+        # Clean up connections
+        queue.close()
+```
+
+## Thread-Safe Workflow Usage
+
+Here's how to use workflows safely in a multi-threaded environment:
+
+```python
+import threading
+from gigq import Workflow, Job, JobQueue, Worker, close_connections
+
+def workflow_thread(db_path, data_source):
+    """Process a workflow in a separate thread."""
+    # Create queue for this thread
+    queue = JobQueue(db_path)
+
+    try:
+        # Create a workflow
+        workflow = Workflow(f"process_{data_source}")
+
+        # Add jobs...
+
+        # Submit workflow
+        job_ids = workflow.submit_all(queue)
+
+        # Optionally process jobs in the same thread
+        worker = Worker(db_path)
+        try:
+            while True:
+                if not worker.process_one():
+                    break  # No more jobs to process
+        finally:
+            worker.close()
+    finally:
+        # Clean up connections
+        queue.close()
+        close_connections()
+
+# Start workflows in separate threads
+threads = []
+for source in ["source1", "source2", "source3"]:
+    thread = threading.Thread(target=workflow_thread, args=("workflows.db", source))
+    thread.start()
+    threads.append(thread)
+
+# Wait for all threads to complete
+for thread in threads:
+    thread.join()
 ```
 
 ## Best Practices
@@ -256,13 +316,15 @@ When designing workflows, consider the following best practices:
 
 7. **Pass minimal data between jobs**: Use file paths or database references rather than large data objects when passing information between jobs.
 
+8. **Properly manage connections**: Always close database connections when you're done with them.
+
 ## Example: ETL Workflow
 
-Here's a complete example of an ETL (Extract, Transform, Load) workflow:
+Here's a complete example of an ETL (Extract, Transform, Load) workflow with proper connection management:
 
 ```python
 from datetime import datetime
-from gigq import Job, JobQueue, Workflow
+from gigq import Job, JobQueue, Workflow, close_connections
 
 # Define job functions
 def extract_data(source_url, output_file):
@@ -289,69 +351,84 @@ def notify_completion(job_results, recipients):
     # ... notification logic ...
     return {"notifications_sent": len(recipients)}
 
-# Create a workflow
-workflow = Workflow("daily_etl_job")
+def run_etl_workflow():
+    # Create a workflow
+    workflow = Workflow("daily_etl_job")
 
-# Create date-stamped filenames
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-raw_file = f"data/raw_{timestamp}.csv"
-transformed_file = f"data/transformed_{timestamp}.csv"
+    # Create date-stamped filenames
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    raw_file = f"data/raw_{timestamp}.csv"
+    transformed_file = f"data/transformed_{timestamp}.csv"
 
-# Create jobs
-extract_job = Job(
-    name="extract",
-    function=extract_data,
-    params={
-        "source_url": "https://example.com/api/data",
-        "output_file": raw_file
-    },
-    timeout=300,  # 5 minutes
-    max_attempts=3
-)
+    # Create jobs
+    extract_job = Job(
+        name="extract",
+        function=extract_data,
+        params={
+            "source_url": "https://example.com/api/data",
+            "output_file": raw_file
+        },
+        timeout=300,  # 5 minutes
+        max_attempts=3
+    )
 
-transform_job = Job(
-    name="transform",
-    function=transform_data,
-    params={
-        "input_file": raw_file,
-        "output_file": transformed_file
-    },
-    timeout=600,  # 10 minutes
-    max_attempts=2
-)
+    transform_job = Job(
+        name="transform",
+        function=transform_data,
+        params={
+            "input_file": raw_file,
+            "output_file": transformed_file
+        },
+        timeout=600,  # 10 minutes
+        max_attempts=2
+    )
 
-load_job = Job(
-    name="load",
-    function=load_data,
-    params={
-        "input_file": transformed_file,
-        "database_connection": "postgresql://user:pass@localhost/db"
-    },
-    timeout=900,  # 15 minutes
-    max_attempts=3
-)
+    load_job = Job(
+        name="load",
+        function=load_data,
+        params={
+            "input_file": transformed_file,
+            "database_connection": "postgresql://user:pass@localhost/db"
+        },
+        timeout=900,  # 15 minutes
+        max_attempts=3
+    )
 
-notify_job = Job(
-    name="notify",
-    function=notify_completion,
-    params={
-        "recipients": ["data-team@example.com"]
-    },
-    timeout=60,  # 1 minute
-    max_attempts=5
-)
+    notify_job = Job(
+        name="notify",
+        function=notify_completion,
+        params={
+            "recipients": ["data-team@example.com"]
+        },
+        timeout=60,  # 1 minute
+        max_attempts=5
+    )
 
-# Add jobs to workflow with dependencies
-workflow.add_job(extract_job)
-workflow.add_job(transform_job, depends_on=[extract_job])
-workflow.add_job(load_job, depends_on=[transform_job])
-workflow.add_job(notify_job, depends_on=[load_job])
+    # Add jobs to workflow with dependencies
+    workflow.add_job(extract_job)
+    workflow.add_job(transform_job, depends_on=[extract_job])
+    workflow.add_job(load_job, depends_on=[transform_job])
+    workflow.add_job(notify_job, depends_on=[load_job])
 
-# Submit the workflow
-queue = JobQueue("etl_jobs.db")
-job_ids = workflow.submit_all(queue)
+    # Create a job queue
+    queue = JobQueue("etl_jobs.db")
 
-print(f"Submitted ETL workflow with {len(job_ids)} jobs")
+    try:
+        # Submit the workflow
+        job_ids = workflow.submit_all(queue)
+        print(f"Submitted ETL workflow with {len(job_ids)} jobs")
+        return job_ids
+    finally:
+        # Always close connections
+        queue.close()
+
+if __name__ == "__main__":
+    try:
+        job_ids = run_etl_workflow()
+        # Optionally start a worker to process the jobs
+    finally:
+        # Ensure all connections are closed
+        close_connections()
 ```
 
 ## Next Steps
@@ -360,4 +437,5 @@ Now that you understand how to create and manage workflows, you may want to expl
 
 - [Error Handling](error-handling.md) - Learn more about how GigQ handles errors in jobs and workflows
 - [CLI Usage](cli.md) - Using the command line interface to manage workflows
+- [Database Utilities](../advanced/db_utils.md) - Learn about GigQ's thread-local connection management
 - [Examples](../examples/github-archive.md) - See complete examples of workflows in action

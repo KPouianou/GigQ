@@ -156,6 +156,26 @@ count = queue.clear_completed(before_timestamp=one_week_ago)
 print(f"Cleared {count} jobs older than one week")
 ```
 
+## Connection Management
+
+GigQ uses thread-local connection management to efficiently reuse SQLite connections. When you're done using a `JobQueue` instance, you should close its connection:
+
+```python
+# Close the connection for this queue
+queue.close()
+```
+
+Or to close all connections in the current thread:
+
+```python
+from gigq import close_connections
+
+# Close all connections in the current thread
+close_connections()
+```
+
+This is especially important in multi-threaded applications or long-running processes to avoid resource leaks.
+
 ## Job Queue Persistence
 
 The job queue uses SQLite as its backend, which provides:
@@ -190,6 +210,9 @@ job2 = Job(
     dependencies=[job1_id]
 )
 job2_id = queue.submit(job2)
+
+# Clean up when done
+queue.close()
 ```
 
 The second job will only be picked up by workers after the first job has completed successfully.
@@ -224,16 +247,25 @@ For long-running jobs, you might want to periodically check their status:
 ```python
 import time
 
+# Create a job queue
+queue = JobQueue("jobs.db")
+
+# Submit a job
 job_id = queue.submit(long_running_job)
 
-while True:
-    status = queue.get_status(job_id)
-    print(f"Job status: {status['status']}")
+try:
+    # Monitor the job
+    while True:
+        status = queue.get_status(job_id)
+        print(f"Job status: {status['status']}")
 
-    if status['status'] in ('completed', 'failed', 'cancelled', 'timeout'):
-        break
+        if status['status'] in ('completed', 'failed', 'cancelled', 'timeout'):
+            break
 
-    time.sleep(5)  # Check every 5 seconds
+        time.sleep(5)  # Check every 5 seconds
+finally:
+    # Always close the queue when done
+    queue.close()
 ```
 
 ### Working with Multiple Queues
@@ -245,13 +277,22 @@ You can work with multiple queues by creating multiple `JobQueue` instances:
 high_priority_queue = JobQueue("high_priority.db")
 background_queue = JobQueue("background.db")
 
-# Submit to the appropriate queue
-high_priority_queue.submit(important_job)
-background_queue.submit(background_job)
+try:
+    # Submit to the appropriate queue
+    high_priority_queue.submit(important_job)
+    background_queue.submit(background_job)
 
-# Create workers for each queue
-high_worker = Worker("high_priority.db")
-background_worker = Worker("background.db")
+    # Create workers for each queue
+    high_worker = Worker("high_priority.db")
+    background_worker = Worker("background.db")
+
+    # Process jobs...
+finally:
+    # Clean up all connections
+    high_priority_queue.close()
+    background_queue.close()
+    high_worker.close()
+    background_worker.close()
 ```
 
 This allows you to:
@@ -260,11 +301,48 @@ This allows you to:
 - Allocate different resources to different queues
 - Manage priorities across job categories
 
+## Thread-Safe Usage
+
+GigQ uses thread-local connection management to ensure thread safety:
+
+```python
+import threading
+from gigq import JobQueue, Worker, close_connections
+
+def worker_thread(db_path):
+    # Each thread gets its own connections
+    queue = JobQueue(db_path)
+    worker = Worker(db_path)
+
+    try:
+        # Process jobs
+        worker.start()
+    except KeyboardInterrupt:
+        worker.stop()
+    finally:
+        # Clean up connections
+        queue.close()
+        worker.close()
+        close_connections()  # Close any other connections in this thread
+
+# Create multiple worker threads
+threads = []
+for i in range(4):
+    thread = threading.Thread(target=worker_thread, args=("jobs.db",))
+    thread.daemon = True
+    threads.append(thread)
+    thread.start()
+
+# Wait for threads to complete
+for thread in threads:
+    thread.join()
+```
+
 ## Best Practices
 
 1. **Use a consistent database path** across all components that need to access the same queue.
 
-2. **Handle database locking** - SQLite can experience locking issues under heavy concurrency. If you're running many workers, consider using a more robust backend in a production environment.
+2. **Always close connections** when you're done with them to prevent resource leaks.
 
 3. **Regularly clean up completed jobs** to keep the database size manageable, either through `clear_completed()` or by setting up a periodic task.
 
@@ -277,42 +355,49 @@ This allows you to:
 Here's an example of creating a simple dashboard for monitoring job queue status:
 
 ```python
-def print_queue_stats(queue):
+def print_queue_stats(db_path):
     """Print statistics about the job queue."""
-    # Get job counts by status
-    statuses = ["pending", "running", "completed", "failed", "cancelled", "timeout"]
-    counts = {}
 
-    for status in statuses:
-        jobs = queue.list_jobs(status=status)
-        counts[status] = len(jobs)
+    # Create a queue to query the database
+    queue = JobQueue(db_path)
 
-    total = sum(counts.values())
+    try:
+        # Get job counts by status
+        statuses = ["pending", "running", "completed", "failed", "cancelled", "timeout"]
+        counts = {}
 
-    # Print summary
-    print(f"=== Job Queue Statistics ===")
-    print(f"Total jobs: {total}")
-    for status, count in counts.items():
-        percentage = (count / total) * 100 if total > 0 else 0
-        print(f"{status.capitalize()}: {count} ({percentage:.1f}%)")
+        for status in statuses:
+            jobs = queue.list_jobs(status=status)
+            counts[status] = len(jobs)
 
-    # Print recently completed jobs
-    completed = queue.list_jobs(status="completed", limit=5)
-    if completed:
-        print("\nRecently completed jobs:")
-        for job in completed:
-            print(f"  {job['name']} - Completed at {job['completed_at']}")
+        total = sum(counts.values())
 
-    # Print failed jobs
-    failed = queue.list_jobs(status="failed", limit=5)
-    if failed:
-        print("\nRecent failures:")
-        for job in failed:
-            print(f"  {job['name']} - {job['error']}")
+        # Print summary
+        print(f"=== Job Queue Statistics ===")
+        print(f"Total jobs: {total}")
+        for status, count in counts.items():
+            percentage = (count / total) * 100 if total > 0 else 0
+            print(f"{status.capitalize()}: {count} ({percentage:.1f}%)")
+
+        # Print recently completed jobs
+        completed = queue.list_jobs(status="completed", limit=5)
+        if completed:
+            print("\nRecently completed jobs:")
+            for job in completed:
+                print(f"  {job['name']} - Completed at {job['completed_at']}")
+
+        # Print failed jobs
+        failed = queue.list_jobs(status="failed", limit=5)
+        if failed:
+            print("\nRecent failures:")
+            for job in failed:
+                print(f"  {job['name']} - {job['error']}")
+    finally:
+        # Always close the queue when done
+        queue.close()
 
 # Usage
-queue = JobQueue("jobs.db")
-print_queue_stats(queue)
+print_queue_stats("jobs.db")
 ```
 
 ## Next Steps

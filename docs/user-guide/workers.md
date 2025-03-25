@@ -25,8 +25,15 @@ worker = Worker("jobs.db", worker_id="worker-1")
 Once you've created a worker, you can start it:
 
 ```python
-# Start the worker (blocks until the worker is stopped)
-worker.start()
+try:
+    # Start the worker (blocks until the worker is stopped)
+    worker.start()
+except KeyboardInterrupt:
+    # Handle graceful shutdown
+    worker.stop()
+finally:
+    # Always close the worker's database connections
+    worker.close()
 ```
 
 The `start` method blocks until the worker is stopped, typically by a keyboard interrupt (Ctrl+C) or a signal.
@@ -35,9 +42,21 @@ To run the worker in the background, you can use a separate thread or process:
 
 ```python
 import threading
+from gigq import Worker, close_connections
+
+def worker_thread(db_path):
+    worker = Worker(db_path)
+    try:
+        worker.start()
+    except KeyboardInterrupt:
+        worker.stop()
+    finally:
+        # Clean up connections
+        worker.close()
+        close_connections()
 
 # Start the worker in a background thread
-worker_thread = threading.Thread(target=worker.start)
+worker_thread = threading.Thread(target=worker_thread, args=("jobs.db",))
 worker_thread.daemon = True  # Thread will exit when the main program exits
 worker_thread.start()
 
@@ -50,12 +69,17 @@ If you want to process just one job and then stop:
 
 ```python
 # Process a single job
-result = worker.process_one()
+worker = Worker("jobs.db")
+try:
+    result = worker.process_one()
 
-if result:
-    print("Processed one job")
-else:
-    print("No jobs available to process")
+    if result:
+        print("Processed one job")
+    else:
+        print("No jobs available to process")
+finally:
+    # Clean up connections
+    worker.close()
 ```
 
 The `process_one` method returns `True` if a job was processed, or `False` if no jobs were available.
@@ -65,13 +89,35 @@ The `process_one` method returns `True` if a job was processed, or `False` if no
 To stop a running worker:
 
 ```python
-# Stop the worker
-worker.stop()
+# Create a worker
+worker = Worker("jobs.db")
+
+try:
+    worker.start()
+except KeyboardInterrupt:
+    # Stop the worker
+    worker.stop()
+finally:
+    # Clean up connections
+    worker.close()
 ```
 
-This will cause the worker to exit its processing loop after completing its current job (if any).
-
 Workers also handle signals automatically. When a worker receives a `SIGINT` (Ctrl+C) or `SIGTERM` signal, it will stop gracefully.
+
+## Connection Management
+
+GigQ uses thread-local storage for database connections. When you're done with a worker, always close its connections:
+
+```python
+# Close just this worker's connections
+worker.close()
+
+# Or close all connections in the current thread
+from gigq import close_connections
+close_connections()
+```
+
+This is especially important in multi-threaded applications to prevent resource leaks.
 
 ## Worker Configuration
 
@@ -129,21 +175,41 @@ You can run multiple workers simultaneously to process jobs in parallel:
 
 ```python
 # In worker_script.py
-from gigq import Worker
 import sys
+import signal
+from gigq import Worker, close_connections
 
-worker_id = sys.argv[1] if len(sys.argv) > 1 else None
-worker = Worker("jobs.db", worker_id=worker_id)
-worker.start()
+def run_worker(db_path, worker_id=None):
+    worker = Worker(db_path, worker_id=worker_id)
+
+    # Handle signals
+    def handle_signal(sig, frame):
+        print(f"Worker {worker.worker_id} received signal {sig}, stopping...")
+        worker.stop()
+
+    signal.signal(signal.SIGINT, handle_signal)
+    signal.signal(signal.SIGTERM, handle_signal)
+
+    try:
+        worker.start()
+    finally:
+        # Clean up connections
+        worker.close()
+        close_connections()
+
+if __name__ == "__main__":
+    db_path = sys.argv[1] if len(sys.argv) > 1 else "jobs.db"
+    worker_id = sys.argv[2] if len(sys.argv) > 2 else None
+    run_worker(db_path, worker_id)
 ```
 
 Then run multiple instances:
 
 ```bash
 # Run 3 workers
-python worker_script.py worker-1 &
-python worker_script.py worker-2 &
-python worker_script.py worker-3 &
+python worker_script.py jobs.db worker-1 &
+python worker_script.py jobs.db worker-2 &
+python worker_script.py jobs.db worker-3 &
 ```
 
 Each worker will claim and process jobs independently, with SQLite's locking mechanisms ensuring that each job is processed exactly once.
@@ -157,6 +223,41 @@ GigQ uses SQLite's locking mechanisms to ensure safe concurrency:
 3. If multiple workers try to claim the same job, only one will succeed
 
 This approach provides robust concurrency without requiring complex distributed locking mechanisms.
+
+### Thread Safety
+
+GigQ uses thread-local connection management to ensure each thread has its own SQLite connection:
+
+```python
+import threading
+from gigq import Worker, close_connections
+
+def worker_thread(thread_id):
+    # Each thread gets its own connection
+    worker = Worker("jobs.db", worker_id=f"worker-{thread_id}")
+
+    try:
+        # Process jobs
+        worker.start()
+    except KeyboardInterrupt:
+        worker.stop()
+    finally:
+        # Clean up connections when the thread exits
+        worker.close()
+        close_connections()
+
+# Create multiple worker threads
+threads = []
+for i in range(4):
+    thread = threading.Thread(target=worker_thread, args=(i,))
+    thread.daemon = True
+    threads.append(thread)
+    thread.start()
+
+# Wait for threads to complete (or main program to exit)
+for thread in threads:
+    thread.join()
+```
 
 ## Handling Worker Crashes
 
@@ -188,30 +289,38 @@ You can monitor worker activity through the job queue:
 ```python
 from gigq import JobQueue, JobStatus
 
-queue = JobQueue("jobs.db")
+def monitor_workers(db_path):
+    queue = JobQueue(db_path)
 
-# Get all running jobs
-running_jobs = queue.list_jobs(status=JobStatus.RUNNING)
+    try:
+        # Get all running jobs
+        running_jobs = queue.list_jobs(status=JobStatus.RUNNING)
 
-# Group by worker
-workers = {}
-for job in running_jobs:
-    worker_id = job.get('worker_id')
-    if worker_id:
-        if worker_id not in workers:
-            workers[worker_id] = []
-        workers[worker_id].append(job)
+        # Group by worker
+        workers = {}
+        for job in running_jobs:
+            worker_id = job.get('worker_id')
+            if worker_id:
+                if worker_id not in workers:
+                    workers[worker_id] = []
+                workers[worker_id].append(job)
 
-# Print worker activity
-for worker_id, jobs in workers.items():
-    print(f"Worker {worker_id} is processing {len(jobs)} jobs:")
-    for job in jobs:
-        print(f"  - {job['name']} (started at {job['started_at']})")
+        # Print worker activity
+        for worker_id, jobs in workers.items():
+            print(f"Worker {worker_id} is processing {len(jobs)} jobs:")
+            for job in jobs:
+                print(f"  - {job['name']} (started at {job['started_at']})")
+    finally:
+        # Clean up connections
+        queue.close()
+
+# Monitor workers
+monitor_workers("jobs.db")
 ```
 
 ## Worker Best Practices
 
-1. **Use appropriate polling intervals**: Lower values increase responsiveness but also database load.
+1. **Use appropriate polling intervals**: Lower values increase responsiveness but also increase database load.
 
 2. **Set reasonable job timeouts**: Ensure timeouts are long enough for normal execution but short enough to detect hung jobs.
 
@@ -225,9 +334,11 @@ for worker_id, jobs in workers.items():
 
 7. **Log worker activity**: Enable logging to track worker behavior and troubleshoot issues.
 
+8. **Always close connections**: Use proper connection management to prevent resource leaks.
+
 ## Example: Background Processing Service
 
-Here's an example of a background processing service that runs multiple workers:
+Here's an example of a background processing service that runs multiple workers with proper connection management:
 
 ```python
 """
@@ -241,7 +352,7 @@ import sys
 import time
 from multiprocessing import Process
 
-from gigq import Worker, JobQueue
+from gigq import Worker, JobQueue, close_connections
 
 # Configure logging
 logging.basicConfig(
@@ -251,11 +362,19 @@ logging.basicConfig(
 logger = logging.getLogger('background_service')
 
 def run_worker(db_path, worker_id):
-    """Run a worker process."""
+    """Run a worker process with proper connection management."""
     worker = Worker(db_path, worker_id=worker_id)
     logger.info(f"Starting worker {worker_id}")
-    worker.start()
-    logger.info(f"Worker {worker_id} stopped")
+
+    try:
+        worker.start()
+    except Exception as e:
+        logger.error(f"Worker {worker_id} error: {e}")
+    finally:
+        # Clean up connections
+        worker.close()
+        close_connections()
+        logger.info(f"Worker {worker_id} stopped")
 
 def main():
     parser = argparse.ArgumentParser(description="GigQ Background Processing Service")
@@ -306,21 +425,11 @@ def main():
     except Exception as e:
         logger.error(f"Error in main monitoring loop: {e}")
         handle_signal(signal.SIGTERM, None)
+    finally:
+        # Clean up connections in the main process
+        queue.close()
+        close_connections()
 
 if __name__ == "__main__":
     main()
 ```
-
-You can run this service from the command line:
-
-```bash
-python background_service.py --db jobs.db --workers 4
-```
-
-## Next Steps
-
-Now that you understand how workers process jobs, learn more about:
-
-- [Error handling and job recovery](error-handling.md)
-- [Creating workflows with dependencies](workflows.md)
-- [Advanced concurrency handling](../advanced/concurrency.md)

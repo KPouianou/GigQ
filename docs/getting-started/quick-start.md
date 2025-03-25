@@ -63,7 +63,11 @@ from gigq import Worker
 worker = Worker("my_jobs.db")
 
 # Start the worker (this will block until stopped)
-worker.start()
+try:
+    worker.start()
+except KeyboardInterrupt:
+    worker.stop()
+    worker.close()  # Close worker's database connections
 ```
 
 Alternatively, you can process a single job:
@@ -85,6 +89,20 @@ print(f"Job status: {status['status']}")
 # If the job is completed, you can access the result
 if status["status"] == "completed":
     print(f"Result: {status['result']}")
+```
+
+### 5. Proper Resource Cleanup
+
+When you're done using GigQ, make sure to properly close connections:
+
+```python
+# Close specific connections
+queue.close()
+worker.close()
+
+# Or close all connections in the current thread
+from gigq import close_connections
+close_connections()
 ```
 
 ## Using the Command Line Interface
@@ -131,7 +149,7 @@ gigq --db my_jobs.db cancel your-job-id
 GigQ allows you to create workflows with dependent jobs:
 
 ```python
-from gigq import Workflow
+from gigq import Workflow, Job, JobQueue
 
 # Create a workflow
 workflow = Workflow("data_processing")
@@ -146,7 +164,7 @@ download_job = Job(
 process_job = Job(
     name="process",
     function=process_file,
-    params={"filename": "data.csv"}
+    params={"filename": "data.csv", "output_file": "processed.csv"}
 )
 
 analyze_job = Job(
@@ -156,12 +174,54 @@ analyze_job = Job(
 )
 
 # Add jobs to workflow with dependencies
-workflow.add_job(download_job)
-workflow.add_job(process_job, depends_on=[download_job])
-workflow.add_job(analyze_job, depends_on=[process_job])
+workflow.add_job(download_job)  # No dependencies
+workflow.add_job(process_job, depends_on=[download_job])  # Depends on job1
+workflow.add_job(analyze_job, depends_on=[process_job])  # Depends on job2
+
+# Create a job queue
+queue = JobQueue("workflow_jobs.db")
 
 # Submit all jobs in the workflow
 job_ids = workflow.submit_all(queue)
+
+# Clean up when done
+queue.close()
+```
+
+## Thread Safety and Connection Management
+
+GigQ uses thread-local connection management to efficiently reuse SQLite connections within each thread:
+
+```python
+import threading
+from gigq import JobQueue, Worker, close_connections
+
+def worker_thread():
+    # Each thread gets its own connection
+    queue = JobQueue("jobs.db")
+    worker = Worker("jobs.db")
+
+    try:
+        worker.start()
+    except KeyboardInterrupt:
+        worker.stop()
+    finally:
+        # Clean up connections when the thread exits
+        worker.close()
+        queue.close()
+        close_connections()
+
+# Create worker threads
+threads = []
+for i in range(4):
+    thread = threading.Thread(target=worker_thread)
+    thread.daemon = True
+    threads.append(thread)
+    thread.start()
+
+# Wait for threads to complete
+for thread in threads:
+    thread.join()
 ```
 
 ## Next Steps

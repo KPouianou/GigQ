@@ -210,6 +210,25 @@ def cmd_clear(args):
     return 0
 
 
+def cmd_stats(args):
+    """Show aggregate job statistics."""
+    queue = JobQueue(args.db)
+    stats = queue.stats()
+
+    headers = ["Status", "Count"]
+    rows = []
+
+    # Ensure a stable, user-friendly order using the JobStatus enum
+    for status in JobStatus:
+        rows.append([status.value, stats.get(status.value, 0)])
+
+    # Add total as a separate row
+    rows.append(["total", stats.get("total", 0)])
+
+    print(format_table(rows, headers=headers))
+    return 0
+
+
 def cmd_worker(args):
     """Start a worker process."""
     worker = Worker(
@@ -314,6 +333,12 @@ def main():
         "--once", action="store_true", help="Process one job and exit"
     )
     worker_parser.set_defaults(func=cmd_worker)
+
+    # Stats command
+    stats_parser = subparsers.add_parser(
+        "stats", help="Show aggregate job statistics"
+    )
+    stats_parser.set_defaults(func=cmd_stats)
 
     args = parser.parse_args()
     return args.func(args)

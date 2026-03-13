@@ -5,6 +5,13 @@ All notable changes to GigQ will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `JobQueue.stats()` method to retrieve aggregate job counts by status in a single query
+- `gigq stats` CLI command to display queue statistics in a table
+
 ## [0.2.0] - 2025-03-24
 
 ### Added

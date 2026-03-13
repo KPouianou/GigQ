@@ -272,6 +272,43 @@ class JobQueue:
 
         return results
 
+    def stats(self) -> Dict[str, int]:
+        """
+        Get aggregate statistics about jobs in the queue.
+
+        Returns:
+            A dictionary mapping job status names to counts, plus a "total" key.
+
+            Example:
+                {
+                    "pending": 5,
+                    "running": 2,
+                    "completed": 100,
+                    "failed": 1,
+                    "cancelled": 0,
+                    "timeout": 0,
+                    "total": 108,
+                }
+        """
+        conn = self._get_connection()
+
+        cursor = conn.execute(
+            "SELECT status, COUNT(*) AS count FROM jobs GROUP BY status"
+        )
+
+        stats: Dict[str, int] = {status.value: 0 for status in JobStatus}
+        total = 0
+
+        for row in cursor.fetchall():
+            status = row["status"]
+            count = int(row["count"])
+            stats[status] = count
+            total += count
+
+        stats["total"] = total
+
+        return stats
+
     def clear_completed(self, before_timestamp: Optional[str] = None) -> int:
         """
         Clear completed jobs from the queue.

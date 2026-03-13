@@ -90,3 +90,39 @@ def test_function(value):
         output = captured_output.getvalue()
         self.assertIn("completed", output.lower())
         self.assertIn("result: 84", output)  # 42 * 2
+
+    def test_cli_stats(self):
+        """End-to-end test for the stats command."""
+        # First, submit a job so the database is not empty
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        sys.argv = [
+            "gigq",
+            "--db",
+            self.db_path,
+            "submit",
+            "gigq_test_module.test_function",
+            "--name",
+            "stats_test_job",
+            "--param",
+            "value=5",
+        ]
+        main()
+
+        # Now call the stats command
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        sys.argv = ["gigq", "--db", self.db_path, "stats"]
+        main()
+
+        # Restore stdout
+        sys.stdout = self.original_stdout
+
+        output = captured_output.getvalue()
+        # We don't assert exact numbers, just that the table structure and key labels exist
+        self.assertIn("Status", output)
+        self.assertIn("Count", output)
+        self.assertIn("pending", output)
+        self.assertIn("total", output)

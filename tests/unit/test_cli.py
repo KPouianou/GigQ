@@ -18,6 +18,7 @@ from gigq.cli import (
     cmd_cancel,
     cmd_requeue,
     cmd_clear,
+    cmd_stats,
 )
 
 
@@ -303,6 +304,58 @@ def test_function(value):
         # Verify the jobs are cleared
         all_jobs = self.queue.list_jobs()
         self.assertEqual(len(all_jobs), 3)  # Only the 3 original test jobs remain
+
+    def test_cmd_stats(self):
+        """Test the stats command."""
+        # Submit additional jobs and update their statuses to create variety
+        pending_job = Job(name="stats_pending", function=example_function)
+        running_job = Job(name="stats_running", function=example_function)
+        completed_job = Job(name="stats_completed", function=example_function)
+        failed_job = Job(name="stats_failed", function=example_function)
+
+        pending_id = self.queue.submit(pending_job)
+        running_id = self.queue.submit(running_job)
+        completed_id = self.queue.submit(completed_job)
+        failed_id = self.queue.submit(failed_job)
+
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "UPDATE jobs SET status = ? WHERE id = ?",
+            (JobStatus.RUNNING.value, running_id),
+        )
+        conn.execute(
+            "UPDATE jobs SET status = ? WHERE id = ?",
+            (JobStatus.COMPLETED.value, completed_id),
+        )
+        conn.execute(
+            "UPDATE jobs SET status = ? WHERE id = ?",
+            (JobStatus.FAILED.value, failed_id),
+        )
+        conn.commit()
+        conn.close()
+
+        # Redirect stdout
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        # Create mock args
+        args = MagicMock()
+        args.db = self.db_path
+
+        # Run the stats command
+        cmd_stats(args)
+
+        # Reset stdout
+        sys.stdout = sys.__stdout__
+
+        output = captured_output.getvalue()
+
+        # Basic sanity checks: headers and known statuses should be present
+        self.assertIn("Status", output)
+        self.assertIn("Count", output)
+        for status in [s.value for s in JobStatus]:
+            self.assertIn(status, output)
+        self.assertIn("total", output)
 
 
 if __name__ == "__main__":

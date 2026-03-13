@@ -122,7 +122,35 @@ gigq --db jobs.db list --status pending --limit 20
 The `list` command:
 
 1. Gets a list of jobs from the queue, optionally filtered by status
-2. Formats and prints the jobs in a table using `tabulate`
+2. Formats and prints the jobs in a table using the built-in `table_formatter`
+
+### stats
+
+```python
+def cmd_stats(args):
+    """Show aggregate job statistics."""
+```
+
+Shows aggregate statistics about jobs in the queue.
+
+#### Arguments
+
+This command uses the global `--db` option to select the SQLite database, just like the other commands.
+
+#### Example
+
+```bash
+gigq --db jobs.db stats
+```
+
+#### Implementation Details
+
+The `stats` command:
+
+1. Calls `JobQueue.stats()` to retrieve counts of jobs by status
+2. Ensures all statuses from `JobStatus` are present in the output (with `0` if missing)
+3. Adds a `total` row with the sum of all jobs
+4. Formats and prints the statistics in a table using the same `table_formatter` as other commands
 
 ### cancel
 

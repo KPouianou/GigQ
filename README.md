@@ -232,6 +232,10 @@ gigq --db jobs.db worker --once
 # Check job status
 status = queue.get_status(job_id)
 print(f"Job status: {status['status']}")
+
+# Get aggregate queue statistics
+stats = queue.stats()
+print(stats)  # e.g. {"pending": 5, "running": 2, "completed": 100, "failed": 1, "cancelled": 0, "timeout": 0, "total": 108}
 ```
 
 Or use the CLI:
@@ -278,6 +282,9 @@ gigq list --status pending
 
 # Check job status
 gigq status your-job-id --show-result
+
+# Show aggregate queue statistics
+gigq stats
 
 # Cancel a job
 gigq cancel your-job-id

@@ -157,6 +157,56 @@ class TestJobQueue(unittest.TestCase):
         jobs = self.queue.list_jobs()
         self.assertEqual(len(jobs), 2)  # 2 jobs should remain
 
+    def test_stats_returns_counts_by_status(self):
+        """Test that stats() returns correct counts by status and total."""
+        # Submit jobs with default pending status
+        pending_jobs = []
+        for i in range(3):
+            job = Job(
+                name=f"pending_job_{i}",
+                function=example_job_function,
+            )
+            job_id = self.queue.submit(job)
+            pending_jobs.append(job_id)
+
+        # Submit additional jobs that we'll mark as running, completed, and failed
+        running_job = Job(name="running_job", function=example_job_function)
+        completed_job = Job(name="completed_job", function=example_job_function)
+        failed_job = Job(name="failed_job", function=failing_job_function)
+
+        running_id = self.queue.submit(running_job)
+        completed_id = self.queue.submit(completed_job)
+        failed_id = self.queue.submit(failed_job)
+
+        # Update statuses directly in the database
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "UPDATE jobs SET status = ? WHERE id = ?",
+            (JobStatus.RUNNING.value, running_id),
+        )
+        conn.execute(
+            "UPDATE jobs SET status = ? WHERE id = ?",
+            (JobStatus.COMPLETED.value, completed_id),
+        )
+        conn.execute(
+            "UPDATE jobs SET status = ? WHERE id = ?",
+            (JobStatus.FAILED.value, failed_id),
+        )
+        conn.commit()
+        conn.close()
+
+        stats = self.queue.stats()
+
+        self.assertEqual(stats["pending"], 3)
+        self.assertEqual(stats["running"], 1)
+        self.assertEqual(stats["completed"], 1)
+        self.assertEqual(stats["failed"], 1)
+        self.assertEqual(stats["cancelled"], 0)
+        self.assertEqual(stats["timeout"], 0)
+        self.assertEqual(
+            stats["total"], 3 + 1 + 1 + 1
+        )  # Sum of all individual statuses
+
 
 if __name__ == "__main__":
     unittest.main()

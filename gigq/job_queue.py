@@ -229,6 +229,44 @@ class JobQueue:
 
         return result
 
+    def get_result(self, job_id: str) -> Optional[Any]:
+        """
+        Get the result value for a job.
+
+        This is a lightweight helper for callers (such as MCP tools)
+        that only care about the job's return value, not the full
+        job status payload.
+
+        Args:
+            job_id: The ID of the job.
+
+        Returns:
+            The deserialized job result if the job exists and has
+            completed successfully, or None if the job exists but
+            is not yet completed or has no result.
+
+        Raises:
+            KeyError: If the job with the given ID does not exist.
+        """
+        conn = self._get_connection()
+
+        cursor = conn.execute(
+            "SELECT status, result FROM jobs WHERE id = ?", (job_id,)
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            raise KeyError(f"Job with id {job_id!r} not found")
+
+        if row["status"] != JobStatus.COMPLETED.value:
+            return None
+
+        raw_result = row["result"]
+        if not raw_result:
+            return None
+
+        return json.loads(raw_result)
+
     def list_jobs(
         self, status: Optional[Union[JobStatus, str]] = None, limit: int = 100
     ) -> List[Dict[str, Any]]:

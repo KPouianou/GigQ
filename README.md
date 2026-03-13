@@ -233,6 +233,11 @@ gigq --db jobs.db worker --once
 status = queue.get_status(job_id)
 print(f"Job status: {status['status']}")
 
+# Get only the completed job result (if available)
+result = queue.get_result(job_id)
+if result is not None:
+    print(f"Job result: {result}")
+
 # Get aggregate queue statistics
 stats = queue.stats()
 print(stats)  # e.g. {"pending": 5, "running": 2, "completed": 100, "failed": 1, "cancelled": 0, "timeout": 0, "total": 108}

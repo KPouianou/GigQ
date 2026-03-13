@@ -6,6 +6,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+import json
 from gigq import Job, JobQueue, JobStatus
 
 
@@ -206,6 +207,45 @@ class TestJobQueue(unittest.TestCase):
         self.assertEqual(
             stats["total"], 3 + 1 + 1 + 1
         )  # Sum of all individual statuses
+
+    def test_get_result_returns_none_for_pending_job(self):
+        """get_result should return None when the job is not completed."""
+        job = Job(
+            name="pending_result_job",
+            function=example_job_function,
+            params={"value": 10},
+        )
+        job_id = self.queue.submit(job)
+
+        result = self.queue.get_result(job_id)
+        self.assertIsNone(result)
+
+    def test_get_result_returns_deserialized_result_for_completed_job(self):
+        """get_result should return the deserialized result for a completed job."""
+        job = Job(
+            name="completed_result_job",
+            function=example_job_function,
+            params={"value": 7},
+        )
+        job_id = self.queue.submit(job)
+
+        # Mark job as completed and store a JSON result directly
+        conn = sqlite3.connect(self.db_path)
+        stored_result = {"answer": 42}
+        conn.execute(
+            "UPDATE jobs SET status = ?, result = ? WHERE id = ?",
+            (JobStatus.COMPLETED.value, json.dumps(stored_result), job_id),
+        )
+        conn.commit()
+        conn.close()
+
+        result = self.queue.get_result(job_id)
+        self.assertEqual(result, stored_result)
+
+    def test_get_result_raises_for_missing_job(self):
+        """get_result should raise KeyError for a non-existent job ID."""
+        with self.assertRaises(KeyError):
+            self.queue.get_result("non-existent-id")
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `JobQueue.stats()` method to retrieve aggregate job counts by status in a single query
 - `gigq stats` CLI command to display queue statistics in a table
+- `JobQueue.get_result()` method to fetch only the deserialized job result for completed jobs
 
 ## [0.2.0] - 2025-03-24
 

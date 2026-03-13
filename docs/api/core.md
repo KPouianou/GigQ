@@ -167,6 +167,23 @@ def get_status(self, job_id: str) -> Dict[str, Any]:
 
 Returns a dictionary with the job's current status and details.
 
+#### get_result
+
+```python
+def get_result(self, job_id: str) -> Optional[Any]:
+    """
+    Get the result value for a job.
+
+    This returns the deserialized result for a completed job,
+    or None if the job exists but is not yet completed or has
+    no stored result. A KeyError is raised if the job does not exist.
+    """
+```
+
+Provides a lightweight way to fetch only the job's return value, which is
+especially useful for integrations (such as MCP tools) that don't need
+the full status payload.
+
 #### list_jobs
 
 ```python
@@ -238,6 +255,11 @@ job_id = queue.submit(job)
 # Check job status
 status = queue.get_status(job_id)
 print(f"Job status: {status['status']}")
+
+# Get only the completed job result (if available)
+result = queue.get_result(job_id)
+if result is not None:
+    print(f"Job result: {result}")
 
 # List pending jobs
 pending_jobs = queue.list_jobs(status="pending")

@@ -6,7 +6,7 @@ This guide covers various ways to install GigQ and set up your environment.
 
 GigQ requires:
 
-- Python 3.9 or newer
+- Python 3.10 or newer
 - SQLite 3.8.3 or newer (usually included with Python)
 
 ## Standard Installation
@@ -78,7 +78,7 @@ pip install gigq
 You can also run GigQ in a Docker container. Create a `Dockerfile`:
 
 ```dockerfile
-FROM python:3.9-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
@@ -120,7 +120,7 @@ GigQ has the following dependency categories:
 
 ### Core Dependencies
 
-- Python 3.9+
+- Python 3.10+
 
 ### Example Dependencies [examples]
 

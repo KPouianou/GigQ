@@ -335,9 +335,7 @@ def main():
     worker_parser.set_defaults(func=cmd_worker)
 
     # Stats command
-    stats_parser = subparsers.add_parser(
-        "stats", help="Show aggregate job statistics"
-    )
+    stats_parser = subparsers.add_parser("stats", help="Show aggregate job statistics")
     stats_parser.set_defaults(func=cmd_stats)
 
     args = parser.parse_args()

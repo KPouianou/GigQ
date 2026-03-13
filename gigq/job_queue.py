@@ -250,9 +250,7 @@ class JobQueue:
         """
         conn = self._get_connection()
 
-        cursor = conn.execute(
-            "SELECT status, result FROM jobs WHERE id = ?", (job_id,)
-        )
+        cursor = conn.execute("SELECT status, result FROM jobs WHERE id = ?", (job_id,))
         row = cursor.fetchone()
 
         if not row:

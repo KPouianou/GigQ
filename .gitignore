@@ -60,6 +60,7 @@ gigq-env/
 *.swp
 *.swo
 *~
+.cursor/
 
 # OS specific files
 .DS_Store

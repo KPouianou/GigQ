@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `gigq stats` CLI command to display queue statistics in a table
 - `JobQueue.get_result()` method to fetch only the deserialized job result for completed jobs
 
+### Changed
+
+- Minimum Python version bumped from 3.9 to 3.10
+
 ## [0.2.0] - 2025-03-24
 
 ### Added

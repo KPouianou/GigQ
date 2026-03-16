@@ -247,7 +247,9 @@ class TestRetryUnderConcurrency(WorkerConcurrencyTestBase):
 
         # Set up state DB for retry tracking
         state_fd, state_db = tempfile.mkstemp(suffix=".db")
-        self.addCleanup(lambda: os.unlink(state_db) if os.path.exists(state_db) else None)
+        self.addCleanup(
+            lambda: os.unlink(state_db) if os.path.exists(state_db) else None
+        )
         self.addCleanup(lambda: os.close(state_fd))
 
         for i in range(num_jobs):

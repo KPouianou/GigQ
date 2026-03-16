@@ -8,8 +8,10 @@ import json
 import logging
 import signal
 import sqlite3
+import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, Optional
 
@@ -23,10 +25,18 @@ logger = logging.getLogger("gigq.worker")
 class Worker:
     """
     A worker that processes jobs from the queue.
+
+    Supports concurrent job processing via the ``concurrency`` parameter.
+    When concurrency > 1, multiple threads each independently claim and
+    execute jobs from the queue.
     """
 
     def __init__(
-        self, db_path: str, worker_id: Optional[str] = None, polling_interval: int = 5
+        self,
+        db_path: str,
+        worker_id: Optional[str] = None,
+        polling_interval: int = 5,
+        concurrency: int = 1,
     ):
         """
         Initialize a worker.
@@ -35,13 +45,56 @@ class Worker:
             db_path: Path to the SQLite database file.
             worker_id: Unique identifier for this worker (auto-generated if not provided).
             polling_interval: How often to check for new jobs, in seconds.
+            concurrency: Number of concurrent job-processing threads (must be >= 1).
         """
+        if concurrency < 1:
+            raise ValueError(f"concurrency must be >= 1, got {concurrency}")
+
         self.db_path = db_path
         self.worker_id = worker_id or f"worker-{uuid.uuid4()}"
         self.polling_interval = polling_interval
+        self.concurrency = concurrency
         self.running = False
-        self.current_job_id = None
+        self._thread_local = threading.local()
         self.logger = logging.getLogger(f"gigq.worker.{self.worker_id}")
+
+    @property
+    def _active_worker_id(self) -> str:
+        """Return the thread-specific worker ID, falling back to the base ID."""
+        return getattr(self._thread_local, "worker_id", self.worker_id)
+
+    @property
+    def _log(self) -> logging.Logger:
+        """Return the thread-specific logger, falling back to the base logger."""
+        return getattr(self._thread_local, "logger", self.logger)
+
+    @property
+    def current_job_id(self) -> Optional[str]:
+        """The ID of the job currently being processed by this thread."""
+        return getattr(self._thread_local, "current_job_id", None)
+
+    @current_job_id.setter
+    def current_job_id(self, value: Optional[str]):
+        self._thread_local.current_job_id = value
+
+    def _setup_thread_state(self, thread_index: int = 0):
+        """
+        Initialize per-thread state for a worker loop thread.
+
+        Args:
+            thread_index: Index of this thread (0-based). When concurrency == 1,
+                          the worker ID is not suffixed.
+        """
+        if self.concurrency > 1:
+            thread_worker_id = f"{self.worker_id}-{thread_index}"
+        else:
+            thread_worker_id = self.worker_id
+
+        self._thread_local.worker_id = thread_worker_id
+        self._thread_local.logger = logging.getLogger(
+            f"gigq.worker.{thread_worker_id}"
+        )
+        self._thread_local.current_job_id = None
 
     def _get_connection(self) -> sqlite3.Connection:
         """
@@ -78,6 +131,7 @@ class Worker:
             A job dictionary if a job was claimed, None otherwise.
         """
         conn = self._get_connection()
+        active_worker_id = self._active_worker_id
 
         try:
             # Ensure transaction isolation
@@ -140,7 +194,7 @@ class Worker:
                 SET status = ?, worker_id = ?, started_at = ?, updated_at = ?, attempts = attempts + 1
                 WHERE id = ?
                 """,
-                (JobStatus.RUNNING.value, self.worker_id, now, now, job_id),
+                (JobStatus.RUNNING.value, active_worker_id, now, now, job_id),
             )
 
             # Record execution start
@@ -150,7 +204,7 @@ class Worker:
                 INSERT INTO job_executions (id, job_id, worker_id, status, started_at)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (execution_id, job_id, self.worker_id, JobStatus.RUNNING.value, now),
+                (execution_id, job_id, active_worker_id, JobStatus.RUNNING.value, now),
             )
 
             # Commit the transaction
@@ -173,7 +227,7 @@ class Worker:
             return result
         except sqlite3.Error as e:
             conn.rollback()
-            self.logger.error(f"Database error when claiming job: {e}")
+            self._log.error(f"Database error when claiming job: {e}")
             return None
 
     def _complete_job(
@@ -252,7 +306,7 @@ class Worker:
                         else JobStatus.TIMEOUT
                     )
 
-                    self.logger.warning(
+                    self._log.warning(
                         f"Job {job['id']} timed out after {timeout_seconds} seconds"
                     )
 
@@ -306,7 +360,7 @@ class Worker:
         execution_id = job["execution_id"]
         self.current_job_id = job_id
 
-        self.logger.info(f"Processing job {job_id} ({job['name']})")
+        self._log.info(f"Processing job {job_id} ({job['name']})")
 
         try:
             # Load the function
@@ -318,14 +372,14 @@ class Worker:
             execution_time = time.time() - start_time
 
             # Record success
-            self.logger.info(
+            self._log.info(
                 f"Job {job_id} completed successfully in {execution_time:.2f}s"
             )
             self._complete_job(job_id, execution_id, JobStatus.COMPLETED, result=result)
 
         except Exception as e:
             # Record failure
-            self.logger.error(f"Job {job_id} failed: {str(e)}", exc_info=True)
+            self._log.error(f"Job {job_id} failed: {str(e)}", exc_info=True)
 
             # Check if we need to retry
             if job["attempts"] < job["max_attempts"]:
@@ -361,30 +415,60 @@ class Worker:
 
         return True
 
+    def _worker_loop(self, thread_index: int = 0):
+        """
+        Run the job-processing loop for a single worker thread.
+
+        Args:
+            thread_index: Index of this thread (0-based).
+        """
+        self._setup_thread_state(thread_index)
+        thread_log = self._log
+        thread_log.info(f"Worker thread {self._active_worker_id} starting")
+
+        try:
+            while self.running:
+                job_processed = self.process_one()
+                if not job_processed:
+                    time.sleep(self.polling_interval)
+        except Exception:
+            thread_log.error("Worker thread crashed", exc_info=True)
+        finally:
+            thread_log.info(f"Worker thread {self._active_worker_id} stopped")
+            close_connection(self.db_path)
+
     def start(self):
         """Start the worker process."""
         self.running = True
         self.logger.info(f"Worker {self.worker_id} starting")
 
-        # Set up signal handlers
+        # Set up signal handlers (only possible from the main thread)
         def handle_signal(sig, frame):
             self.logger.info(f"Received signal {sig}, stopping worker")
             self.running = False
 
-        signal.signal(signal.SIGINT, handle_signal)
-        signal.signal(signal.SIGTERM, handle_signal)
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGINT, handle_signal)
+            signal.signal(signal.SIGTERM, handle_signal)
 
         try:
-            while self.running:
-                # Process one job
-                job_processed = self.process_one()
-
-                # If no job was available, wait before checking again
-                if not job_processed:
-                    time.sleep(self.polling_interval)
+            if self.concurrency == 1:
+                self._worker_loop(0)
+            else:
+                self.logger.info(
+                    f"Starting {self.concurrency} concurrent worker threads"
+                )
+                with ThreadPoolExecutor(
+                    max_workers=self.concurrency
+                ) as executor:
+                    futures = [
+                        executor.submit(self._worker_loop, i)
+                        for i in range(self.concurrency)
+                    ]
+                    # shutdown(wait=True) is implicit via the context manager;
+                    # threads wind down after self.running is set to False
         finally:
             self.logger.info(f"Worker {self.worker_id} stopped")
-            close_connection(self.db_path)
 
     def stop(self):
         """Stop the worker process."""

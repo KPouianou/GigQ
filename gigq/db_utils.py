@@ -33,6 +33,16 @@ def get_connection(db_path: str) -> sqlite3.Connection:
     if db_path not in _thread_local.connections:
         conn = sqlite3.connect(db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
+        result = conn.execute("PRAGMA journal_mode = WAL").fetchone()
+        if result[0] != "wal":
+            import logging
+
+            logging.getLogger("gigq.db_utils").warning(
+                "Failed to enable WAL mode for %s (got %s). "
+                "Concurrent performance may be degraded.",
+                db_path,
+                result[0],
+            )
         _thread_local.connections[db_path] = conn
 
     return _thread_local.connections[db_path]

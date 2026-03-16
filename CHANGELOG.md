@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-03-16
+
+### Added
+
+- `--concurrency N` flag for the `gigq worker` command — one worker process, N threads, each independently claiming and executing jobs from the queue
+- SQLite WAL (Write-Ahead Logging) mode enabled by default on all connections, reducing lock contention under concurrent access
+- Per-thread worker IDs (e.g., `worker-abc-0`, `worker-abc-1`) for monitoring concurrent threads
+- Per-thread loggers scoped to thread-specific worker IDs
+
+### Changed
+
+- `Worker` class accepts a new `concurrency` parameter (default: `1`, no breaking change)
+- `Worker.current_job_id` is now a thread-safe property backed by `threading.local()`
+- Signal handlers in `Worker.start()` are only registered when running on the main thread
+
 ## [0.2.1] - 2026-03-13
 
 ### Added
@@ -52,7 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Archive processing example
 - Documentation with MkDocs
 
-[Unreleased]: https://github.com/kpouianou/gigq/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/kpouianou/gigq/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/kpouianou/gigq/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/kpouianou/gigq/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/kpouianou/gigq/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/kpouianou/gigq/compare/v0.1.0...v0.1.1

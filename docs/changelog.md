@@ -2,7 +2,7 @@
 
 This page documents the release history and notable changes for GigQ.
 
-## Unreleased
+## 0.3.0 (2026-03-16)
 
 ### Features
 

@@ -123,11 +123,12 @@ This is especially important in multi-threaded applications to prevent resource 
 
 The `Worker` class accepts several parameters to customize its behavior:
 
-| Parameter          | Type | Default        | Description                                  |
-| ------------------ | ---- | -------------- | -------------------------------------------- |
-| `db_path`          | str  |                | Path to the SQLite database file (required)  |
-| `worker_id`        | str  | auto-generated | Unique identifier for the worker             |
-| `polling_interval` | int  | 5              | How often to check for new jobs (in seconds) |
+| Parameter          | Type | Default        | Description                                           |
+| ------------------ | ---- | -------------- | ----------------------------------------------------- |
+| `db_path`          | str  |                | Path to the SQLite database file (required)           |
+| `worker_id`        | str  | auto-generated | Unique identifier for the worker                      |
+| `polling_interval` | int  | 5              | How often to check for new jobs (in seconds)          |
+| `concurrency`      | int  | 1              | Number of concurrent job-processing threads           |
 
 Example with custom configuration:
 
@@ -139,6 +140,28 @@ worker = Worker(
     polling_interval=2  # Check for new jobs every 2 seconds
 )
 ```
+
+## Concurrent Job Processing
+
+For I/O-bound workloads (HTTP requests, API calls, file downloads), a single-threaded worker spends most of its time waiting on network responses. The `concurrency` parameter lets one worker process run multiple jobs simultaneously:
+
+```python
+# Process up to 8 jobs at once
+worker = Worker("jobs.db", concurrency=8)
+worker.start()
+```
+
+Or from the CLI:
+
+```bash
+gigq --db jobs.db worker --concurrency 8
+```
+
+Each concurrent thread independently claims and executes jobs from the queue. Thread safety is guaranteed by SQLite's exclusive transactions during job claiming and per-thread database connections.
+
+When `concurrency > 1`, each thread gets a unique worker ID suffix (e.g., `worker-abc-0`, `worker-abc-1`) so you can distinguish threads in logs and the database.
+
+The default is `concurrency=1`, which preserves the original single-threaded behavior with zero overhead.
 
 ## How Workers Process Jobs
 

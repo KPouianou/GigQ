@@ -52,6 +52,33 @@ def sleep_job(duration):
     return {"slept_for": duration}
 
 
+def timed_job(job_id, tracker_db, duration=0.5):
+    """
+    Job that records its start/end timestamps to a tracker DB, then sleeps.
+
+    Used by concurrency tests to prove jobs ran in parallel by checking
+    for overlapping time ranges.
+    """
+    import time
+
+    start = time.time()
+    time.sleep(duration)
+    end = time.time()
+
+    conn = sqlite3.connect(tracker_db)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS timing (job_id TEXT PRIMARY KEY, start_time REAL, end_time REAL)"
+    )
+    conn.execute(
+        "INSERT INTO timing (job_id, start_time, end_time) VALUES (?, ?, ?)",
+        (job_id, start, end),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"job_id": job_id, "start": start, "end": end}
+
+
 def work_counter_job(job_id, counter_dict=None, counter_db=None):
     """
     Job that increments a counter in a shared dictionary or database.

@@ -2,6 +2,19 @@
 
 This page documents the release history and notable changes for GigQ.
 
+## Unreleased
+
+### Features
+
+- **Worker concurrency:** Added `--concurrency N` flag to the `gigq worker` command. A single worker process can now run N threads, each independently claiming and executing jobs from the queue. Default remains `--concurrency 1` (no breaking change).
+- **WAL mode enabled by default:** SQLite connections now use Write-Ahead Logging (`PRAGMA journal_mode = WAL`), which significantly reduces lock contention under concurrent access. This creates `-wal` and `-shm` sidecar files alongside the database.
+
+### API
+
+- `Worker` class accepts a new `concurrency` parameter (default: `1`)
+- `Worker.current_job_id` is now a thread-safe property backed by `threading.local()`
+- Each concurrent thread gets a unique worker ID suffix (e.g., `worker-abc-0`, `worker-abc-1`) for monitoring
+
 ## 0.1.0 (2025-03-15)
 
 Initial release of GigQ.

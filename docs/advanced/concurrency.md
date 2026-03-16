@@ -77,7 +77,49 @@ GigQ configures SQLite connections with a timeout (default: 30 seconds). If a co
 
 This timeout is important for preventing deadlocks and ensuring workers don't wait indefinitely for locks.
 
-## Concurrent Worker Operation
+## Intra-Worker Concurrency (Threads)
+
+GigQ supports running multiple job-processing threads within a single worker process via the `concurrency` parameter:
+
+```python
+# One process, 8 threads, each independently claiming and executing jobs
+worker = Worker("jobs.db", concurrency=8)
+worker.start()
+```
+
+Or from the CLI:
+
+```bash
+gigq --db jobs.db worker --concurrency 8
+```
+
+This is ideal for **I/O-bound workloads** (HTTP requests, API calls, file downloads) where each thread spends most of its time waiting on network responses. Each thread has its own SQLite connection (via thread-local storage) and claims jobs independently using exclusive transactions.
+
+When `concurrency > 1`:
+
+- Each thread gets a unique worker ID suffix (e.g., `worker-abc-0`, `worker-abc-1`) for observability
+- Each thread has its own logger scoped to its worker ID
+- `current_job_id` is tracked per-thread via `threading.local()`
+- Shutdown is graceful: in-flight jobs complete, no new jobs are claimed
+
+The default is `concurrency=1`, which runs on the main thread with no pool overhead.
+
+### Intra-Worker vs. Inter-Worker Concurrency
+
+| Approach | Mechanism | Best for | Trade-offs |
+| --- | --- | --- | --- |
+| `--concurrency N` (intra-worker) | N threads in one process | I/O-bound jobs | Simple to manage; shares one process; limited by the GIL for CPU-bound work |
+| Multiple worker processes (inter-worker) | N separate processes | CPU-bound jobs or full isolation | Each process has its own memory; more operational overhead |
+
+You can combine both: run multiple worker processes, each with `--concurrency N`, to saturate both CPU cores and network I/O.
+
+## WAL Mode
+
+GigQ enables SQLite WAL (Write-Ahead Logging) mode on all connections. WAL allows concurrent readers alongside a single writer, significantly reducing lock contention compared to the default rollback journal. This is especially important when multiple threads or processes access the same database.
+
+WAL mode creates two sidecar files alongside the database: `<db>-wal` and `<db>-shm`. These are managed automatically by SQLite and are cleaned up when all connections close.
+
+## Inter-Worker Concurrent Operation
 
 When running multiple workers, they follow this general workflow:
 

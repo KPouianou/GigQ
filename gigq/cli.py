@@ -232,7 +232,10 @@ def cmd_stats(args):
 def cmd_worker(args):
     """Start a worker process."""
     worker = Worker(
-        args.db, worker_id=args.worker_id, polling_interval=args.polling_interval
+        args.db,
+        worker_id=args.worker_id,
+        polling_interval=args.polling_interval,
+        concurrency=args.concurrency,
     )
 
     if args.once:
@@ -331,6 +334,12 @@ def main():
     )
     worker_parser.add_argument(
         "--once", action="store_true", help="Process one job and exit"
+    )
+    worker_parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        help="Number of concurrent job-processing threads (default: 1)",
     )
     worker_parser.set_defaults(func=cmd_worker)
 

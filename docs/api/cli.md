@@ -245,11 +245,15 @@ Starts a worker process.
 - `--worker-id`: Worker ID (generated if not provided)
 - `--polling-interval`: Polling interval in seconds (default: 5)
 - `--once`: Process one job and exit
+- `--concurrency`: Number of concurrent job-processing threads (default: 1)
 
 #### Example
 
 ```bash
 gigq --db jobs.db worker --polling-interval 2
+
+# Process up to 8 jobs concurrently
+gigq --db jobs.db worker --concurrency 8
 ```
 
 #### Implementation Details

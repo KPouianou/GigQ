@@ -49,6 +49,10 @@ class IntegrationTestBase(unittest.TestCase):
         self.queue.close()
         close_connections()  # Ensure all thread-local connections are closed
 
-        # Remove database file
+        # Remove database file and WAL sidecar files
         os.close(self.db_fd)
         os.unlink(self.db_path)
+        for suffix in ("-wal", "-shm"):
+            sidecar = self.db_path + suffix
+            if os.path.exists(sidecar):
+                os.unlink(sidecar)

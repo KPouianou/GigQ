@@ -5,12 +5,28 @@ Unit tests for the Workflow class in GigQ.
 import os
 import tempfile
 import unittest
-from gigq import Job, JobQueue, Worker, Workflow, JobStatus
+from gigq import Job, JobQueue, Worker, Workflow, JobStatus, task
 
 
 def example_job_function(value=0):
     """Example job function for testing."""
     return {"result": value * 2}
+
+
+@task(timeout=30)
+def decorated_example(value=0):
+    """Decorated example for add_task tests."""
+    return {"result": value * 2}
+
+
+@task
+def decorated_step_a():
+    return "a_done"
+
+
+@task
+def decorated_step_b():
+    return "b_done"
 
 
 class TestWorkflow(unittest.TestCase):
@@ -154,6 +170,54 @@ class TestWorkflow(unittest.TestCase):
 
         # The job IDs should be different
         self.assertNotEqual(job_ids1[0], job_ids2[0])
+
+
+class TestWorkflowAddTask(unittest.TestCase):
+    """Tests for the Workflow.add_task() method."""
+
+    def setUp(self):
+        self.db_fd, self.db_path = tempfile.mkstemp()
+        self.queue = JobQueue(self.db_path)
+
+    def tearDown(self):
+        os.close(self.db_fd)
+        os.unlink(self.db_path)
+
+    def test_add_task_creates_job(self):
+        wf = Workflow("test")
+        job = wf.add_task(decorated_example, params={"value": 42})
+        self.assertIsInstance(job, Job)
+        self.assertEqual(job.name, "decorated_example")
+        self.assertEqual(job.params, {"value": 42})
+        self.assertEqual(job.timeout, 30)
+
+    def test_add_task_dependencies(self):
+        wf = Workflow("test")
+        a = wf.add_task(decorated_step_a)
+        b = wf.add_task(decorated_step_b, depends_on=[a])
+        self.assertEqual(b.dependencies, [a.id])
+
+    def test_add_task_no_params(self):
+        wf = Workflow("test")
+        job = wf.add_task(decorated_step_a)
+        self.assertEqual(job.params, {})
+
+    def test_add_task_rejects_plain_function(self):
+        wf = Workflow("test")
+        with self.assertRaises(TypeError) as ctx:
+            wf.add_task(example_job_function)
+        self.assertIn("@task", str(ctx.exception))
+
+    def test_add_task_submit_all(self):
+        wf = Workflow("test")
+        a = wf.add_task(decorated_step_a)
+        b = wf.add_task(decorated_step_b, depends_on=[a])
+        job_ids = wf.submit_all(self.queue)
+        self.assertEqual(len(job_ids), 2)
+        for job_id in job_ids:
+            status = self.queue.get_status(job_id)
+            self.assertTrue(status["exists"])
+            self.assertEqual(status["status"], JobStatus.PENDING.value)
 
 
 if __name__ == "__main__":

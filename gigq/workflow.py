@@ -5,7 +5,7 @@ This module contains the Workflow class which helps define and manage workflows
 with dependent jobs.
 """
 
-from typing import List
+from typing import Any, Dict, List, Optional
 
 from .job import Job
 from .job_queue import JobQueue
@@ -44,6 +44,36 @@ class Workflow:
         self.jobs.append(job)
         self.job_map[job.id] = job
         return job
+
+    def add_task(
+        self,
+        decorated_fn: Any,
+        params: Optional[Dict[str, Any]] = None,
+        depends_on: Optional[List[Job]] = None,
+    ) -> Job:
+        """
+        Add a @task-decorated function to the workflow.
+
+        Args:
+            decorated_fn: A function decorated with @task.
+            params: Dict of keyword arguments to pass to the function.
+            depends_on: List of jobs this task depends on.
+
+        Returns:
+            The Job that was created and added.
+
+        Raises:
+            TypeError: If decorated_fn is not a @task-decorated function.
+        """
+        from .decorators import TaskWrapper
+
+        if not isinstance(decorated_fn, TaskWrapper):
+            raise TypeError(
+                "add_task() requires a @task-decorated function. "
+                "Use add_job() for plain Job objects."
+            )
+        job = decorated_fn.to_job(**(params or {}))
+        return self.add_job(job, depends_on=depends_on)
 
     def submit_all(self, queue: JobQueue) -> List[str]:
         """

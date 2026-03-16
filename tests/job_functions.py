@@ -2,6 +2,8 @@
 
 import sqlite3
 
+from gigq import task
+
 
 def simple_job(value):
     """Simple job that doubles the input value."""
@@ -100,14 +102,12 @@ def work_counter_job(job_id, counter_dict=None, counter_db=None):
         cursor = conn.cursor()
 
         # Create counter table if it doesn't exist
-        conn.execute(
-            """
+        conn.execute("""
         CREATE TABLE IF NOT EXISTS counter (
             job_id TEXT PRIMARY KEY,
             count INTEGER
         )
-        """
-        )
+        """)
 
         # Insert or increment counter
         conn.execute(
@@ -157,14 +157,12 @@ def retry_job(job_id="default", fail_times=1, state_db=None, attempts_dict=None)
         conn = sqlite3.connect(state_db)
 
         # Create attempts table if it doesn't exist
-        conn.execute(
-            """
+        conn.execute("""
         CREATE TABLE IF NOT EXISTS attempts (
             job_id TEXT PRIMARY KEY,
             count INTEGER
         )
-        """
-        )
+        """)
 
         # Get current attempt count
         cursor = conn.execute("SELECT count FROM attempts WHERE job_id = ?", (job_id,))
@@ -196,6 +194,54 @@ def retry_job(job_id="default", fail_times=1, state_db=None, attempts_dict=None)
         attempts = attempts_dict[job_id]
 
     # Fail if we haven't reached the required number of attempts
+    if attempts <= fail_times:
+        raise ValueError(f"Deliberate failure #{attempts}")
+
+    return {"success": True, "attempts": attempts}
+
+
+# --- Decorated versions for @task integration tests ---
+# These are NEW functions — existing undecorated functions above are untouched.
+
+
+@task
+def decorated_simple_job(value):
+    """Decorated version of simple_job for integration testing."""
+    return {"result": value * 2}
+
+
+@task(timeout=30)
+def decorated_step_one():
+    return {"step": 1, "done": True}
+
+
+@task(timeout=30)
+def decorated_step_two():
+    return {"step": 2, "done": True}
+
+
+@task(timeout=30)
+def decorated_step_three():
+    return {"step": 3, "done": True}
+
+
+@task(max_attempts=3, timeout=30)
+def decorated_retry_job(state_db, job_id="decorated_retry", fail_times=1):
+    """Decorated job that fails a specified number of times before succeeding."""
+    conn = sqlite3.connect(state_db)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS attempts (job_id TEXT PRIMARY KEY, count INTEGER)"
+    )
+    cursor = conn.execute("SELECT count FROM attempts WHERE job_id = ?", (job_id,))
+    row = cursor.fetchone()
+    attempts = (row[0] if row else 0) + 1
+    conn.execute(
+        "INSERT OR REPLACE INTO attempts (job_id, count) VALUES (?, ?)",
+        (job_id, attempts),
+    )
+    conn.commit()
+    conn.close()
+
     if attempts <= fail_times:
         raise ValueError(f"Deliberate failure #{attempts}")
 

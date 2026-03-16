@@ -126,7 +126,8 @@ gigq/
 │
 ├── examples/                    # Example applications
 │   ├── __init__.py
-│   └── github_archive.py       # GitHub Archive processing example
+│   ├── parallel_tasks.py       # @task decorator + concurrent workers
+│   └── hyperparameter_tuning.py # ML hyperparameter tuning demo
 │
 ├── gigq/                        # Main package code
 │   ├── __init__.py             # Package initialization
@@ -341,9 +342,9 @@ gigq clear
 gigq clear --before 7  # Clear jobs completed more than 7 days ago
 ```
 
-## Example: GitHub Archive Processing
+## Examples
 
-See the `examples/github_archive.py` script for a complete example of using GigQ to process GitHub Archive data.
+See `examples/parallel_tasks.py` for a zero-dep demo or `examples/hyperparameter_tuning.py` for the full showpiece.
 
 ## Technical Details
 

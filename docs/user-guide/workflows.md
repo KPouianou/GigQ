@@ -438,4 +438,4 @@ Now that you understand how to create and manage workflows, you may want to expl
 - [Error Handling](error-handling.md) - Learn more about how GigQ handles errors in jobs and workflows
 - [CLI Usage](cli.md) - Using the command line interface to manage workflows
 - [Database Utilities](../advanced/db_utils.md) - Learn about GigQ's thread-local connection management
-- [Examples](../examples/github-archive.md) - See complete examples of workflows in action
+- [Examples](../examples/parallel-tasks.md) - See complete examples of workflows in action

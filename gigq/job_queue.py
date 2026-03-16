@@ -42,8 +42,7 @@ class JobQueue:
         cursor = conn.cursor()
 
         # Jobs table
-        cursor.execute(
-            """
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS jobs (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -65,8 +64,7 @@ class JobQueue:
             completed_at TEXT,
             worker_id TEXT
         )
-        """
-        )
+        """)
 
         # Create indices
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status)")
@@ -75,8 +73,7 @@ class JobQueue:
         )
 
         # Job executions table (for history)
-        cursor.execute(
-            """
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS job_executions (
             id TEXT PRIMARY KEY,
             job_id TEXT NOT NULL,
@@ -88,8 +85,7 @@ class JobQueue:
             error TEXT,
             FOREIGN KEY (job_id) REFERENCES jobs (id)
         )
-        """
-        )
+        """)
 
         conn.commit()
 

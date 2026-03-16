@@ -33,6 +33,7 @@ examples = [
     "requests",
     "pandas",
     "schedule",
+    "scikit-learn",
 ]
 docs = [
     "mkdocs-material",

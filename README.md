@@ -25,6 +25,7 @@ GigQ is a lightweight job queue system with SQLite as its backend. It provides a
 - **Simple Job Definition & Management**
 
   - Define small jobs with parameters, priority, and basic dependencies
+  - `@task` decorator for concise, Pythonic job definitions
   - Organize jobs into simple workflows
   - Enable job cancellation and status checking
 
@@ -68,10 +69,12 @@ gigq/
 │
 ├── examples/                    # Example applications
 │   ├── __init__.py
-│   └── github_archive.py       # GitHub Archive processing example
+│   ├── parallel_tasks.py       # @task decorator + concurrent workers
+│   └── hyperparameter_tuning.py # ML hyperparameter tuning (scikit-learn)
 │
 ├── gigq/                        # Main package code
 │   ├── __init__.py             # Package initialization and exports
+│   ├── decorators.py           # @task decorator
 │   ├── job.py                  # Job class implementation
 │   ├── job_status.py           # JobStatus enum implementation
 │   ├── job_queue.py            # JobQueue class implementation
@@ -183,16 +186,26 @@ Note: If you're only interested in using the CLI or basic functionality, the sta
 
 ### Define and Submit a Job
 
-```python
-from gigq import Job, JobQueue, Worker
+The `@task` decorator is the simplest way to define jobs:
 
-# Define a job function
+```python
+from gigq import task, JobQueue, Worker
+
+@task(max_attempts=3, timeout=300)
 def process_data(filename, threshold=0.5):
-    # Process some data
     print(f"Processing {filename} with threshold {threshold}")
     return {"processed": True, "count": 42}
 
-# Define a job
+queue = JobQueue("jobs.db")
+job_id = process_data.submit(queue, filename="data.csv", threshold=0.7)
+print(f"Submitted job with ID: {job_id}")
+```
+
+Or use explicit `Job` objects for full control:
+
+```python
+from gigq import Job, JobQueue
+
 job = Job(
     name="process_data_job",
     function=process_data,
@@ -201,11 +214,8 @@ job = Job(
     timeout=300
 )
 
-# Create or connect to a job queue
 queue = JobQueue("jobs.db")
 job_id = queue.submit(job)
-
-print(f"Submitted job with ID: {job_id}")
 ```
 
 ### Start a Worker
@@ -214,6 +224,10 @@ print(f"Submitted job with ID: {job_id}")
 # Start a worker
 worker = Worker("jobs.db")
 worker.start()  # This blocks until the worker is stopped
+
+# Or process jobs concurrently with multiple threads
+worker = Worker("jobs.db", concurrency=4)
+worker.start()
 ```
 
 Or use the CLI:
@@ -221,6 +235,9 @@ Or use the CLI:
 ```bash
 # Start a worker
 gigq --db jobs.db worker
+
+# Start with 4 concurrent threads
+gigq --db jobs.db worker --concurrency 4
 
 # Process just one job
 gigq --db jobs.db worker --once
@@ -305,9 +322,10 @@ gigq clear
 gigq clear --before 7  # Clear jobs completed more than 7 days ago
 ```
 
-## Example: GitHub Archive Processing
+## Examples
 
-See the `examples/github_archive.py` script for a complete example of using GigQ to process GitHub Archive data.
+- **[`examples/parallel_tasks.py`](examples/parallel_tasks.py)** — `@task` decorator + concurrent workers (zero deps)
+- **[`examples/hyperparameter_tuning.py`](examples/hyperparameter_tuning.py)** — ML hyperparameter tuning with scikit-learn (sequential vs parallel, crash recovery)
 
 ## Technical Details
 

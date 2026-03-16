@@ -83,13 +83,15 @@ nav:
       - Concepts: getting-started/concepts.md
   - User Guide:
       - Defining Jobs: user-guide/defining-jobs.md
+      - Task Decorator: user-guide/decorators.md
       - Job Queue: user-guide/job-queue.md
       - Workers: user-guide/workers.md
       - Workflows: user-guide/workflows.md
       - Error Handling: user-guide/error-handling.md
       - Command Line Interface: user-guide/cli.md
   - Examples:
-      - GitHub Archive Processing: examples/github-archive.md
+      - Parallel Tasks: examples/parallel-tasks.md
+      - Hyperparameter Tuning: examples/hyperparameter-tuning.md
       - Data Processing Pipeline: examples/data-processing.md
       - Scheduled Background Tasks: examples/scheduled-tasks.md
   - API Reference:

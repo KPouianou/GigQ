@@ -480,6 +480,6 @@ Besides using the `schedule` library, you can also schedule GigQ jobs with:
 Now that you've seen how to schedule recurring tasks with GigQ, you might want to explore:
 
 - [Data Processing Example](data-processing.md) - Learn how to build data processing pipelines
-- [GitHub Archive Example](github-archive.md) - See another example application
+- [Parallel Tasks Example](parallel-tasks.md) - See the zero-dep decorator + concurrency demo
 - [Workflows](../user-guide/workflows.md) - Learn more about creating complex workflows
 - [Job Queue Management](../user-guide/job-queue.md) - Advanced job queue management techniques

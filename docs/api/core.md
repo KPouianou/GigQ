@@ -346,6 +346,95 @@ else:
 worker.start()
 ```
 
+## task
+
+```python
+def task(
+    fn: Optional[Callable] = None, **options: Any
+) -> Union[TaskWrapper, Callable[[Callable], TaskWrapper]]:
+    """
+    Decorator that turns a function into a submittable GigQ task.
+
+    Can be used with or without arguments:
+
+        @task
+        def my_job(x):
+            return x * 2
+
+        @task(timeout=60, max_attempts=5)
+        def my_job(x):
+            return x * 2
+
+    Job options (priority, max_attempts, timeout, description, name) are
+    fixed at decoration time. Use .submit(queue, **params) to enqueue.
+    """
+```
+
+### Options
+
+| Option         | Type | Default         | Description                                 |
+| -------------- | ---- | --------------- | ------------------------------------------- |
+| `name`         | str  | `fn.__name__`   | Job name visible in the queue and logs      |
+| `priority`     | int  | 0               | Higher values run first                     |
+| `max_attempts` | int  | 3               | Retries on failure before marking as failed |
+| `timeout`      | int  | 300             | Maximum runtime in seconds                  |
+| `description`  | str  | `""`            | Optional human-readable description         |
+
+### TaskWrapper
+
+The object returned by `@task`. It is callable (delegates to the wrapped function) and provides these additional methods:
+
+#### submit
+
+```python
+def submit(self, queue: JobQueue, /, **params: Any) -> str:
+    """
+    Create a Job and submit it to the given queue.
+
+    Args:
+        queue: A JobQueue instance (positional-only).
+        **params: Keyword arguments to pass to the wrapped function.
+
+    Returns:
+        The job ID.
+    """
+```
+
+#### to_job
+
+```python
+def to_job(self, **params: Any) -> Job:
+    """
+    Create a Job from this decorated function without submitting it.
+
+    Args:
+        **params: Keyword arguments to pass to the wrapped function.
+
+    Returns:
+        A Job instance ready for submission or workflow use.
+    """
+```
+
+### Example
+
+```python
+from gigq import task, JobQueue, Worker
+
+@task(timeout=60, max_attempts=5)
+def process_data(filename, threshold=0.5):
+    return {"filename": filename, "threshold": threshold}
+
+# Still callable directly
+result = process_data("data.csv", threshold=0.8)
+
+# Submit as a job
+queue = JobQueue("jobs.db")
+job_id = process_data.submit(queue, filename="data.csv", threshold=0.8)
+
+# Or create a Job without submitting
+job = process_data.to_job(filename="data.csv")
+```
+
 ## Workflow
 
 ```python
@@ -384,6 +473,34 @@ def add_job(self, job: Job, depends_on: List[Job] = None) -> Job:
 
 Adds a job to the workflow, optionally specifying dependencies.
 
+#### add_task
+
+```python
+def add_task(
+    self,
+    decorated_fn: TaskWrapper,
+    params: Optional[Dict[str, Any]] = None,
+    depends_on: Optional[List[Job]] = None,
+) -> Job:
+    """
+    Add a @task-decorated function to the workflow.
+
+    Creates a Job from the decorated function and adds it with
+    optional dependencies. Raises TypeError if decorated_fn is
+    not a @task-decorated function.
+
+    Args:
+        decorated_fn: A function decorated with @task.
+        params: Parameters to pass to the function.
+        depends_on: List of jobs this job depends on.
+
+    Returns:
+        The Job that was created and added.
+    """
+```
+
+Convenience method that accepts `@task`-decorated functions directly, calling `.to_job()` internally.
+
 #### submit_all
 
 ```python
@@ -404,26 +521,27 @@ Submits all jobs in the workflow to the queue.
 ### Example
 
 ```python
-from gigq import Workflow, Job, JobQueue
+from gigq import Workflow, Job, JobQueue, task
 
-# Create a workflow
-workflow = Workflow("data_pipeline")
+@task(timeout=60)
+def download(url):
+    return {"path": "/tmp/data.csv"}
 
-# Define jobs
-job1 = Job(name="download", function=download_data)
-job2 = Job(name="process", function=process_data)
-job3 = Job(name="analyze", function=analyze_data)
+@task(timeout=120)
+def process(input_path):
+    return {"rows": 1000}
 
-# Add jobs with dependencies
-workflow.add_job(job1)
-workflow.add_job(job2, depends_on=[job1])
-workflow.add_job(job3, depends_on=[job2])
+# Using add_task with decorated functions
+workflow = Workflow("pipeline")
+dl = workflow.add_task(download, params={"url": "https://example.com/data.csv"})
+pr = workflow.add_task(process, params={"input_path": "/tmp/data.csv"}, depends_on=[dl])
 
-# Submit all jobs
+# Or using add_job with explicit Job objects
+job = Job(name="analyze", function=analyze_data)
+workflow.add_job(job, depends_on=[pr])
+
 queue = JobQueue("workflow.db")
 job_ids = workflow.submit_all(queue)
-
-print(f"Submitted {len(job_ids)} jobs")
 ```
 
 ## Complete Usage Example

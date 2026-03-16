@@ -144,6 +144,31 @@ gigq --db my_jobs.db list --status pending
 gigq --db my_jobs.db cancel your-job-id
 ```
 
+## Using the `@task` Decorator
+
+For a more concise workflow, the `@task` decorator lets you skip explicit `Job` construction:
+
+```python
+from gigq import task, JobQueue, Worker
+
+@task(max_attempts=3, timeout=300)
+def process_file(filename, threshold=0.5):
+    """Process a file with the given threshold."""
+    with open(filename, 'r') as f:
+        content = f.read()
+    word_count = len(content.split())
+    return {"filename": filename, "word_count": word_count}
+
+# Submit a job — parameters are keyword arguments
+queue = JobQueue("my_jobs.db")
+job_id = process_file.submit(queue, filename="data.csv", threshold=0.7)
+
+# The function is still directly callable for testing
+result = process_file("test.txt")
+```
+
+The decorator supports all the same options as `Job` (`priority`, `max_attempts`, `timeout`, `description`, `name`). See the [Task Decorator guide](../user-guide/decorators.md) for full details.
+
 ## Creating Workflows
 
 GigQ allows you to create workflows with dependent jobs:
@@ -229,6 +254,7 @@ for thread in threads:
 Now that you understand the basics of GigQ, you can:
 
 - Learn more about [job definition and parameters](../user-guide/defining-jobs.md)
+- Use the [`@task` decorator](../user-guide/decorators.md) for concise job definitions
 - Explore advanced [workflow capabilities](../user-guide/workflows.md)
-- See a complete [example application](../examples/github-archive.md)
+- See a [parallel tasks example](../examples/parallel-tasks.md) combining decorators and concurrency
 - Understand [how GigQ handles errors](../user-guide/error-handling.md)

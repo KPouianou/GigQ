@@ -600,6 +600,6 @@ This example can be extended in several ways:
 
 Now that you've seen a data processing pipeline example, you might want to explore:
 
-- [GitHub Archive Example](github-archive.md) - Another example using GigQ for GitHub data processing
+- [Hyperparameter Tuning Example](hyperparameter-tuning.md) - ML grid search with crash recovery
 - [Scheduled Tasks Example](scheduled-tasks.md) - How to schedule recurring jobs with GigQ
 - [Error Handling](../user-guide/error-handling.md) - More detailed information on handling errors in GigQ

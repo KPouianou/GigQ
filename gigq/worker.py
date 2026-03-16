@@ -91,9 +91,7 @@ class Worker:
             thread_worker_id = self.worker_id
 
         self._thread_local.worker_id = thread_worker_id
-        self._thread_local.logger = logging.getLogger(
-            f"gigq.worker.{thread_worker_id}"
-        )
+        self._thread_local.logger = logging.getLogger(f"gigq.worker.{thread_worker_id}")
         self._thread_local.current_job_id = None
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -458,9 +456,7 @@ class Worker:
                 self.logger.info(
                     f"Starting {self.concurrency} concurrent worker threads"
                 )
-                with ThreadPoolExecutor(
-                    max_workers=self.concurrency
-                ) as executor:
+                with ThreadPoolExecutor(max_workers=self.concurrency) as executor:
                     futures = [
                         executor.submit(self._worker_loop, i)
                         for i in range(self.concurrency)

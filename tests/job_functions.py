@@ -102,12 +102,14 @@ def work_counter_job(job_id, counter_dict=None, counter_db=None):
         cursor = conn.cursor()
 
         # Create counter table if it doesn't exist
-        conn.execute("""
+        conn.execute(
+            """
         CREATE TABLE IF NOT EXISTS counter (
             job_id TEXT PRIMARY KEY,
             count INTEGER
         )
-        """)
+        """
+        )
 
         # Insert or increment counter
         conn.execute(
@@ -157,12 +159,14 @@ def retry_job(job_id="default", fail_times=1, state_db=None, attempts_dict=None)
         conn = sqlite3.connect(state_db)
 
         # Create attempts table if it doesn't exist
-        conn.execute("""
+        conn.execute(
+            """
         CREATE TABLE IF NOT EXISTS attempts (
             job_id TEXT PRIMARY KEY,
             count INTEGER
         )
-        """)
+        """
+        )
 
         # Get current attempt count
         cursor = conn.execute("SELECT count FROM attempts WHERE job_id = ?", (job_id,))

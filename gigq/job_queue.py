@@ -19,6 +19,17 @@ from .db_utils import get_connection, close_connection
 logger = logging.getLogger("gigq.job_queue")
 
 
+def _normalize_pass_parent_results_db_value(value: Any) -> Optional[bool]:
+    """Map SQLite INTEGER (0/1/NULL) to ``False`` / ``True`` / ``None`` (auto)."""
+    if value is None:
+        return None
+    if value in (0, False):
+        return False
+    if value in (1, True):
+        return True
+    return None
+
+
 class JobQueue:
     """
     Manages a queue of jobs using SQLite as a backend.
@@ -63,10 +74,13 @@ class JobQueue:
             error TEXT,
             started_at TEXT,
             completed_at TEXT,
-            worker_id TEXT
+            worker_id TEXT,
+            pass_parent_results INTEGER
         )
         """
         )
+
+        self._ensure_job_columns(conn)
 
         # Create indices
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status)")
@@ -92,6 +106,15 @@ class JobQueue:
         )
 
         conn.commit()
+
+    def _ensure_job_columns(self, conn: sqlite3.Connection) -> None:
+        """Add columns introduced after the initial schema (idempotent)."""
+        cursor = conn.execute("PRAGMA table_info(jobs)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if "pass_parent_results" not in columns:
+            conn.execute(
+                "ALTER TABLE jobs ADD COLUMN pass_parent_results INTEGER"
+            )
 
     def _get_connection(self) -> sqlite3.Connection:
         """
@@ -122,6 +145,12 @@ class JobQueue:
 
         now = datetime.now().isoformat()
 
+        pass_val = None
+        if job.pass_parent_results is True:
+            pass_val = 1
+        elif job.pass_parent_results is False:
+            pass_val = 0
+
         # Insert the job into the database
         with conn:
             conn.execute(
@@ -129,8 +158,8 @@ class JobQueue:
                 INSERT INTO jobs (
                     id, name, function_name, function_module, params, priority,
                     dependencies, max_attempts, timeout, description, status,
-                    created_at, updated_at, attempts
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    created_at, updated_at, attempts, pass_parent_results
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job.id,
@@ -147,6 +176,7 @@ class JobQueue:
                     job.created_at,
                     now,
                     0,
+                    pass_val,
                 ),
             )
 
@@ -212,6 +242,10 @@ class JobQueue:
             result["dependencies"] = json.loads(result["dependencies"])
         if result["result"]:
             result["result"] = json.loads(result["result"])
+        if "pass_parent_results" in result:
+            result["pass_parent_results"] = _normalize_pass_parent_results_db_value(
+                result["pass_parent_results"]
+            )
 
         result["exists"] = True
 
@@ -303,6 +337,10 @@ class JobQueue:
                 job_dict["dependencies"] = json.loads(job_dict["dependencies"])
             if job_dict["result"]:
                 job_dict["result"] = json.loads(job_dict["result"])
+            if "pass_parent_results" in job_dict:
+                job_dict["pass_parent_results"] = _normalize_pass_parent_results_db_value(
+                    job_dict["pass_parent_results"]
+                )
 
             results.append(job_dict)
 

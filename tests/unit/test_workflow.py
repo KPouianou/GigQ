@@ -219,6 +219,11 @@ class TestWorkflowAddTask(unittest.TestCase):
             self.assertTrue(status["exists"])
             self.assertEqual(status["status"], JobStatus.PENDING.value)
 
+    def test_add_task_pass_parent_results_kwarg(self):
+        wf = Workflow("test")
+        job = wf.add_task(decorated_example, pass_parent_results=False)
+        self.assertFalse(job.pass_parent_results)
+
 
 if __name__ == "__main__":
     unittest.main()

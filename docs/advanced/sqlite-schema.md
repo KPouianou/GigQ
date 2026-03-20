@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     error TEXT,
     started_at TEXT,
     completed_at TEXT,
-    worker_id TEXT
+    worker_id TEXT,
+    pass_parent_results INTEGER
 )
 ```
 
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 | `started_at`      | TEXT    | ISO-format timestamp of when the job started running                         |
 | `completed_at`    | TEXT    | ISO-format timestamp of when the job completed                               |
 | `worker_id`       | TEXT    | ID of the worker processing the job (if running)                             |
+| `pass_parent_results` | INTEGER | `NULL` = auto, `0` = off, `1` = always inject `parent_results` for dependent jobs |
 
 ### Job Executions Table
 
@@ -237,13 +239,15 @@ conn.close()
 
 ## Schema Migrations
 
-The schema is initialized when a `JobQueue` is created. The current version of GigQ doesn't include explicit schema migrations, so if you need to modify the schema:
+The schema is initialized when a `JobQueue` is created. GigQ performs small,
+idempotent upgrades (for example adding `pass_parent_results` to `jobs` if an
+older database file is missing that column). For other manual changes:
 
 1. Backup your database
 2. Make changes manually or create a migration script
 3. Update your GigQ code to work with the modified schema
 
-In future versions, GigQ may include more formal schema migration support.
+More formal migration tooling may arrive in a future release.
 
 ## Performance Considerations
 

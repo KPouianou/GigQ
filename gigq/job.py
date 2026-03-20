@@ -24,6 +24,7 @@ class Job:
         max_attempts: int = 3,
         timeout: int = 300,
         description: str = "",
+        pass_parent_results: Optional[bool] = None,
     ):
         """
         Initialize a new job.
@@ -37,6 +38,12 @@ class Job:
             max_attempts: Maximum number of execution attempts.
             timeout: Maximum runtime in seconds before the job is considered hung.
             description: Optional description of the job.
+            pass_parent_results: Whether to inject ``parent_results`` when this job
+                has dependencies. ``None`` (default) means auto: inject only if the
+                function accepts a ``parent_results`` parameter or ``**kwargs``.
+                ``True`` always injects (when there are dependencies); ``False`` never
+                injects. Injected values are a dict mapping each parent job ID to
+                that job's deserialized result from the database.
         """
         self.id = str(uuid.uuid4())
         self.name = name
@@ -47,4 +54,5 @@ class Job:
         self.max_attempts = max_attempts
         self.timeout = timeout
         self.description = description
+        self.pass_parent_results = pass_parent_results
         self.created_at = datetime.now().isoformat()

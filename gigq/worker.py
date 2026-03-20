@@ -4,6 +4,7 @@ Worker class for GigQ.
 This module contains the Worker class which processes jobs from the queue.
 """
 
+import inspect
 import json
 import logging
 import signal
@@ -13,10 +14,11 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .job_status import JobStatus
 from .db_utils import get_connection, close_connection
+from .job_queue import _normalize_pass_parent_results_db_value
 
 # Configure logging
 logger = logging.getLogger("gigq.worker")
@@ -104,6 +106,56 @@ class Worker:
             A SQLite connection.
         """
         return get_connection(self.db_path)
+
+    @staticmethod
+    def _function_accepts_parent_results(func: Callable) -> bool:
+        """True if ``func`` can receive an injected ``parent_results`` argument."""
+        try:
+            sig = inspect.signature(func)
+        except (TypeError, ValueError):
+            return False
+        for param in sig.parameters.values():
+            if param.kind == inspect.Parameter.VAR_KEYWORD:
+                return True
+        return "parent_results" in sig.parameters
+
+    def _should_inject_parent_results(
+        self, job: Dict[str, Any], func: Callable
+    ) -> bool:
+        dependencies: List[str] = job.get("dependencies") or []
+        if not dependencies:
+            return False
+        mode = job.get("pass_parent_results")
+        if mode is False:
+            return False
+        if mode is True:
+            return True
+        return self._function_accepts_parent_results(func)
+
+    def _load_parent_results(
+        self, conn: sqlite3.Connection, parent_ids: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Build an ordered dict of parent job ID -> deserialized result.
+
+        Keys follow the order of ``parent_ids`` (dependency order from the job row).
+        """
+        if not parent_ids:
+            return {}
+        placeholders = ",".join("?" * len(parent_ids))
+        cursor = conn.execute(
+            f"SELECT id, result FROM jobs WHERE id IN ({placeholders})",
+            parent_ids,
+        )
+        by_id = {row["id"]: row["result"] for row in cursor.fetchall()}
+        out: Dict[str, Any] = {}
+        for pid in parent_ids:
+            raw = by_id.get(pid)
+            if raw is None:
+                out[pid] = None
+            else:
+                out[pid] = json.loads(raw)
+        return out
 
     def _import_function(self, module_name: str, function_name: str) -> Callable:
         """
@@ -219,6 +271,13 @@ class Worker:
                 result["params"] = json.loads(result["params"])
             if result["dependencies"]:
                 result["dependencies"] = json.loads(result["dependencies"])
+
+            if "pass_parent_results" in result:
+                result["pass_parent_results"] = _normalize_pass_parent_results_db_value(
+                    result["pass_parent_results"]
+                )
+            else:
+                result["pass_parent_results"] = None
 
             result["execution_id"] = execution_id
 
@@ -364,9 +423,16 @@ class Worker:
             # Load the function
             func = self._import_function(job["function_module"], job["function_name"])
 
+            params = dict(job["params"])
+            if self._should_inject_parent_results(job, func):
+                conn = self._get_connection()
+                params["parent_results"] = self._load_parent_results(
+                    conn, job["dependencies"]
+                )
+
             # Execute the job
             start_time = time.time()
-            result = func(**job["params"])
+            result = func(**params)
             execution_time = time.time() - start_time
 
             # Record success

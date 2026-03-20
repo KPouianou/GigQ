@@ -55,6 +55,41 @@ workflow.add_job(job2, depends_on=[job1])  # Depends on job1
 workflow.add_job(job3, depends_on=[job2])  # Depends on job2
 ```
 
+## Passing results between steps
+
+When job B depends on job A, B can receive A’s return value without calling
+`JobQueue.get_result` manually. Declare a parameter named `parent_results`
+on the dependent task. The worker injects a **dict** mapping each **parent
+job ID** to that job’s JSON result (same keys as in the `jobs` table).
+
+```python
+from gigq import Workflow, JobQueue, task
+
+@task
+def fetch(url):
+    return {"url": url, "data": 1}  # example payload
+
+@task
+def summarize(parent_results):
+    # Values from all parent jobs, keyed by parent job id
+    payloads = list(parent_results.values())
+    return {"summary": len(payloads)}
+
+wf = Workflow("pipeline")
+job1 = wf.add_task(fetch, params={"url": "https://a.example"})
+job2 = wf.add_task(fetch, params={"url": "https://b.example"})
+job3 = wf.add_task(summarize, depends_on=[job1, job2])
+```
+
+**Auto vs explicit:** With the default `pass_parent_results=None` (“auto”),
+injection happens only if the function accepts `parent_results` or `**kwargs`.
+Set `pass_parent_results=False` on `Job` (or pass it to `Workflow.add_task`)
+to disable injection for that job. Set `True` to always inject when there are
+dependencies.
+
+Functions that take `**kwargs` also receive `parent_results` when auto mode
+applies—use `False` if you need to avoid that.
+
 ## Multiple Dependencies
 
 A job can depend on multiple other jobs:

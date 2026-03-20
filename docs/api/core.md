@@ -41,6 +41,7 @@ class Job:
         max_attempts: int = 3,
         timeout: int = 300,
         description: str = "",
+        pass_parent_results: Optional[bool] = None,
     ):
         """
         Initialize a new job.
@@ -54,6 +55,8 @@ class Job:
             max_attempts: Maximum number of execution attempts.
             timeout: Maximum runtime in seconds before the job is considered hung.
             description: Optional description of the job.
+            pass_parent_results: Whether the worker should inject a ``parent_results``
+                argument when this job has dependencies (see below).
         """
 ```
 
@@ -72,7 +75,27 @@ The `Job` class represents a unit of work to be executed by the queue system.
 | `max_attempts` | int      | Maximum number of execution attempts                         |
 | `timeout`      | int      | Maximum runtime in seconds before the job is considered hung |
 | `description`  | str      | Optional description of the job                              |
+| `pass_parent_results` | bool or None | Controls injection of parent job results (see below) |
 | `created_at`   | str      | ISO format timestamp of when the job was created             |
+
+### Parent job results (`parent_results`)
+
+When a job has **dependencies**, a worker may inject a keyword argument
+`parent_results` before calling the job function. The value is a
+`dict` mapping each **parent job ID** (string) to that job’s stored
+result (JSON-deserialized from the `jobs.result` column), in the same
+order as the dependency list.
+
+- **Default (`pass_parent_results=None`, “auto”)**: inject only if the
+  function accepts a parameter named `parent_results` or declares
+  `**kwargs`.
+- **`pass_parent_results=True`**: always inject when there are
+  dependencies (the job may fail at runtime if the signature does not
+  accept the extra keyword).
+- **`pass_parent_results=False`**: never inject.
+
+Injected values override any `parent_results` key stored in `params`.
+See [Workflows](../user-guide/workflows.md#passing-results-between-steps) for examples.
 
 ### Example
 
@@ -481,6 +504,7 @@ def add_task(
     decorated_fn: TaskWrapper,
     params: Optional[Dict[str, Any]] = None,
     depends_on: Optional[List[Job]] = None,
+    pass_parent_results: Optional[bool] = None,
 ) -> Job:
     """
     Add a @task-decorated function to the workflow.
@@ -493,6 +517,7 @@ def add_task(
         decorated_fn: A function decorated with @task.
         params: Parameters to pass to the function.
         depends_on: List of jobs this job depends on.
+        pass_parent_results: If not ``None``, sets ``Job.pass_parent_results``.
 
     Returns:
         The Job that was created and added.

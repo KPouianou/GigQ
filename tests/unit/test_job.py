@@ -40,7 +40,16 @@ class TestJob(unittest.TestCase):
         self.assertEqual(job.max_attempts, 2)
         self.assertEqual(job.timeout, 120)
         self.assertEqual(job.description, "A test job")
+        self.assertIsNone(job.pass_parent_results)
         self.assertTrue(job.id)  # ID should be generated
+
+    def test_job_pass_parent_results(self):
+        job = Job(
+            name="p",
+            function=example_job_function,
+            pass_parent_results=True,
+        )
+        self.assertTrue(job.pass_parent_results)
 
     def test_job_default_values(self):
         """Test default values for job parameters."""

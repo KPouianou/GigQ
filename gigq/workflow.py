@@ -50,6 +50,7 @@ class Workflow:
         decorated_fn: Any,
         params: Optional[Dict[str, Any]] = None,
         depends_on: Optional[List[Job]] = None,
+        pass_parent_results: Optional[bool] = None,
     ) -> Job:
         """
         Add a @task-decorated function to the workflow.
@@ -58,6 +59,8 @@ class Workflow:
             decorated_fn: A function decorated with @task.
             params: Dict of keyword arguments to pass to the function.
             depends_on: List of jobs this task depends on.
+            pass_parent_results: Forwarded to :class:`~gigq.job.Job`. Use ``None``
+                for auto-detection from the function signature (see ``Job``).
 
         Returns:
             The Job that was created and added.
@@ -73,6 +76,8 @@ class Workflow:
                 "Use add_job() for plain Job objects."
             )
         job = decorated_fn.to_job(**(params or {}))
+        if pass_parent_results is not None:
+            job.pass_parent_results = pass_parent_results
         return self.add_job(job, depends_on=depends_on)
 
     def submit_all(self, queue: JobQueue) -> List[str]:

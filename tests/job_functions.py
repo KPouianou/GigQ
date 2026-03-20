@@ -229,6 +229,30 @@ def decorated_step_three():
     return {"step": 3, "done": True}
 
 
+def no_parent_results_child(**params):
+    """Used to assert ``pass_parent_results=False`` skips injection."""
+    if "parent_results" in params:
+        raise AssertionError("parent_results should not be injected")
+    return {"ok": True}
+
+
+@task
+def workflow_fetch_tag(tag):
+    """Return a small payload for parent-result workflow tests."""
+    return {"tag": tag}
+
+
+@task
+def workflow_merge_parent_results(parent_results):
+    """Fan-in: receives injected parent results (parent job id -> return value)."""
+    tags = sorted(
+        r["tag"]
+        for r in parent_results.values()
+        if isinstance(r, dict) and "tag" in r
+    )
+    return {"tags": tags}
+
+
 @task(max_attempts=3, timeout=30)
 def decorated_retry_job(state_db, job_id="decorated_retry", fail_times=1):
     """Decorated job that fails a specified number of times before succeeding."""

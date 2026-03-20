@@ -247,6 +247,71 @@ class TestJobQueue(unittest.TestCase):
         with self.assertRaises(KeyError):
             self.queue.get_result("non-existent-id")
 
+    def test_submit_pass_parent_results_roundtrip(self):
+        """pass_parent_results is persisted and exposed on get_status."""
+        job_true = Job(
+            name="ppr_true",
+            function=example_job_function,
+            pass_parent_results=True,
+        )
+        job_false = Job(
+            name="ppr_false",
+            function=example_job_function,
+            pass_parent_results=False,
+        )
+        job_auto = Job(name="ppr_auto", function=example_job_function)
+
+        id_true = self.queue.submit(job_true)
+        id_false = self.queue.submit(job_false)
+        id_auto = self.queue.submit(job_auto)
+
+        self.assertIs(self.queue.get_status(id_true)["pass_parent_results"], True)
+        self.assertIs(self.queue.get_status(id_false)["pass_parent_results"], False)
+        self.assertIsNone(self.queue.get_status(id_auto)["pass_parent_results"])
+
+    def test_migration_adds_pass_parent_results_column(self):
+        """Opening JobQueue against a legacy DB adds pass_parent_results."""
+        fd, legacy_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            conn = sqlite3.connect(legacy_path)
+            conn.execute(
+                """
+                CREATE TABLE jobs (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    function_name TEXT NOT NULL,
+                    function_module TEXT NOT NULL,
+                    params TEXT,
+                    priority INTEGER DEFAULT 0,
+                    dependencies TEXT,
+                    max_attempts INTEGER DEFAULT 3,
+                    timeout INTEGER DEFAULT 300,
+                    description TEXT,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    attempts INTEGER DEFAULT 0,
+                    result TEXT,
+                    error TEXT,
+                    started_at TEXT,
+                    completed_at TEXT,
+                    worker_id TEXT
+                )
+                """
+            )
+            conn.commit()
+            conn.close()
+
+            JobQueue(legacy_path)
+
+            conn = sqlite3.connect(legacy_path)
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()]
+            conn.close()
+            self.assertIn("pass_parent_results", cols)
+        finally:
+            os.unlink(legacy_path)
+
 
 if __name__ == "__main__":
     unittest.main()

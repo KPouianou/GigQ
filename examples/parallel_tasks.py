@@ -2,7 +2,8 @@
 Parallel Tasks — minimal GigQ example.
 
 Shows the @task decorator and Worker(concurrency=N) with zero external
-dependencies.  Copy-paste-friendly starting point for your own project.
+dependencies.  The workflow at the end fans out hash_block jobs and fans in
+with summarise(), which receives every parent's return value via parent_results.
 
 Usage:
     python examples/parallel_tasks.py
@@ -27,9 +28,23 @@ def hash_block(block_id, rounds=200_000):
 
 
 @task(timeout=10)
-def summarise(total_blocks):
-    """Final step — runs only after all hash jobs complete."""
-    return {"total_blocks": total_blocks, "status": "done"}
+def summarise(parent_results):
+    """Fan-in step: merge outputs from all hash_block parents (via parent_results)."""
+    rows = sorted(
+        (r for r in parent_results.values() if isinstance(r, dict)),
+        key=lambda r: r["block_id"],
+    )
+    n = len(rows)
+    digests = "".join(r["sha256"] for r in rows)
+    combined = hashlib.sha256(digests.encode()).hexdigest()
+    return {
+        "parent_count": n,
+        "combined_sha256_of_digests": combined,
+        "sample_parents": [
+            {"block_id": r["block_id"], "sha256_prefix": r["sha256"][:16]}
+            for r in rows[:3]
+        ],
+    }
 
 
 def main():
@@ -81,7 +96,7 @@ def main():
     for i in range(n):
         j = wf.add_task(hash_block, params={"block_id": i})
         hash_jobs.append(j)
-    wf.add_task(summarise, params={"total_blocks": n}, depends_on=hash_jobs)
+    wf.add_task(summarise, depends_on=hash_jobs)
 
     wf_ids = wf.submit_all(queue2)
     print(f"\nSubmitted workflow: {n} hash jobs → 1 summary")
@@ -99,6 +114,16 @@ def main():
     for wid in wf_ids:
         s = queue2.get_status(wid)
         print(f"  {s['name']:15s} {s['status']}")
+
+    summary = queue2.get_result(wf_ids[-1])
+    print(
+        f"\n  summarise (parent_results): merged {summary['parent_count']} hash outputs"
+    )
+    print(
+        f"  combined digest (sha256 of concatenated hex): {summary['combined_sha256_of_digests'][:32]}..."
+    )
+    for sp in summary["sample_parents"]:
+        print(f"    parent block {sp['block_id']}: {sp['sha256_prefix']}...")
 
     # ── Cleanup ───────────────────────────────────────────────
     queue.close()

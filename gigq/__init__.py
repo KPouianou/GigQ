@@ -2,6 +2,8 @@
 GigQ: A lightweight job queue system with SQLite backend.
 """
 
+import logging
+
 # Import and re-export the main classes from their respective modules
 from .job import Job
 from .job_queue import JobQueue
@@ -11,10 +13,13 @@ from .workflow import Workflow
 from .db_utils import close_connections
 from .decorators import task
 
-# Initialize logging with default settings
 from .utils import setup_logging
 
-setup_logging()
+# Library logging: do not configure handlers on import (see Python logging HOWTO).
+# NullHandler + no propagation avoids leaking to the root logger's lastResort.
+_lib_logger = logging.getLogger("gigq")
+_lib_logger.addHandler(logging.NullHandler())
+_lib_logger.propagate = False
 
 # Get version from installed package
 try:
@@ -38,5 +43,6 @@ __all__ = [
     "Worker",
     "Workflow",
     "close_connections",
+    "setup_logging",
     "task",
 ]

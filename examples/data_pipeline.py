@@ -7,6 +7,9 @@ step's return value through parent_results.
 
 Usage:
     python examples/data_pipeline.py
+
+GigQ does not configure logging on import. For verbose worker/job logs, call
+``setup_logging()`` from ``gigq`` before starting workers.
 """
 
 import os

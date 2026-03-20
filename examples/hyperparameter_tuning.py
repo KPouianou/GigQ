@@ -12,6 +12,9 @@ Requires scikit-learn:
 
 Usage:
     python examples/hyperparameter_tuning.py
+
+GigQ does not configure logging on import. For verbose worker/job logs, call
+``setup_logging()`` from ``gigq`` before starting workers.
 """
 
 import itertools

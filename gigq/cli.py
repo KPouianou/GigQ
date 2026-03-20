@@ -7,12 +7,14 @@ The key change is replacing the tabulate dependency with our custom table_format
 
 import argparse
 import json
+import logging
 import os
 import sys
 import time
 from datetime import datetime, timedelta
 
 from gigq import JobQueue, Worker, JobStatus
+from gigq.utils import setup_logging
 from gigq.table_formatter import format_table
 
 
@@ -231,6 +233,7 @@ def cmd_stats(args):
 
 def cmd_worker(args):
     """Start a worker process."""
+    setup_logging(logging.INFO)
     worker = Worker(
         args.db,
         worker_id=args.worker_id,

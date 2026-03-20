@@ -14,20 +14,21 @@ logger = logging.getLogger("gigq")
 
 def setup_logging(level: int = logging.INFO) -> None:
     """
-    Set up logging for GigQ.
+    Opt-in logging configuration for GigQ (stderr, standard format).
 
-    Args:
-        level: The logging level to use.
+    Call this from an application entrypoint when you want GigQ's job/worker
+    logs. Importing ``gigq`` does not configure handlers.
     """
     logger.setLevel(level)
-    # Only add a handler if one doesn't exist already
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+    logger.propagate = False
+    for h in list(logger.handlers):
+        logger.removeHandler(h)
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 
 def format_timestamp(timestamp: Optional[str]) -> str:

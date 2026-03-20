@@ -246,9 +246,7 @@ def workflow_fetch_tag(tag):
 def workflow_merge_parent_results(parent_results):
     """Fan-in: receives injected parent results (parent job id -> return value)."""
     tags = sorted(
-        r["tag"]
-        for r in parent_results.values()
-        if isinstance(r, dict) and "tag" in r
+        r["tag"] for r in parent_results.values() if isinstance(r, dict) and "tag" in r
     )
     return {"tags": tags}
 

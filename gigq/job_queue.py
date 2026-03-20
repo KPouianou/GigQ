@@ -112,9 +112,7 @@ class JobQueue:
         cursor = conn.execute("PRAGMA table_info(jobs)")
         columns = {row[1] for row in cursor.fetchall()}
         if "pass_parent_results" not in columns:
-            conn.execute(
-                "ALTER TABLE jobs ADD COLUMN pass_parent_results INTEGER"
-            )
+            conn.execute("ALTER TABLE jobs ADD COLUMN pass_parent_results INTEGER")
 
     def _get_connection(self) -> sqlite3.Connection:
         """
@@ -338,8 +336,10 @@ class JobQueue:
             if job_dict["result"]:
                 job_dict["result"] = json.loads(job_dict["result"])
             if "pass_parent_results" in job_dict:
-                job_dict["pass_parent_results"] = _normalize_pass_parent_results_db_value(
-                    job_dict["pass_parent_results"]
+                job_dict["pass_parent_results"] = (
+                    _normalize_pass_parent_results_db_value(
+                        job_dict["pass_parent_results"]
+                    )
                 )
 
             results.append(job_dict)

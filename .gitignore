@@ -78,3 +78,6 @@ site/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Local notes (not for the repo)
+FRICTION.md

@@ -39,6 +39,7 @@ coverage.xml
 # Environments
 .env
 .venv
+.venv-mcp
 env/
 venv/
 ENV/

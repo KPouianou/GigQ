@@ -28,14 +28,19 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install black==25.11.0 pytest pytest-cov
         pip install -e ".[dev]"
+        pip install -e mcp_server
     
     - name: Check formatting with Black
       run: |
-        black --check gigq tests
+        black --check gigq tests mcp_server/gigq_mcp mcp_server/test_smoke.py
     
     - name: Test with pytest
       run: |
         pytest tests --cov=gigq --cov-report=xml
+    
+    - name: MCP server smoke test
+      run: |
+        python mcp_server/test_smoke.py -v
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5

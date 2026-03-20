@@ -327,6 +327,10 @@ gigq clear --before 7  # Clear jobs completed more than 7 days ago
 - **[`examples/parallel_tasks.py`](examples/parallel_tasks.py)** — `@task` decorator + concurrent workers (zero deps)
 - **[`examples/hyperparameter_tuning.py`](examples/hyperparameter_tuning.py)** — ML hyperparameter tuning with scikit-learn (sequential vs parallel, crash recovery)
 
+## Integrations
+
+- **[MCP Server](./mcp_server/)** — Let AI agents submit jobs, monitor queues, and retrieve results through the Model Context Protocol.
+
 ## Technical Details
 
 ### SQLite Schema

@@ -94,6 +94,8 @@ nav:
       - Hyperparameter Tuning: examples/hyperparameter-tuning.md
       - Data Processing Pipeline: examples/data-processing.md
       - Scheduled Background Tasks: examples/scheduled-tasks.md
+  - Integrations:
+      - MCP Server: integrations/mcp.md
   - API Reference:
       - Core: api/core.md
       - CLI: api/cli.md

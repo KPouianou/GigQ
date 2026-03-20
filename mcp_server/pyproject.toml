@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gigq-mcp"
+version = "0.1.0"
+description = "Model Context Protocol server for GigQ job queues and workflows"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "GigQ Team", email = "info@gigq.dev" }]
+dependencies = [
+    "gigq>=0.4.0",
+    "mcp>=1.2.0",
+]
+
+[project.scripts]
+gigq-mcp = "gigq_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/kpouianou/gigq"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gigq_mcp*"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310", "py311", "py312", "py313"]

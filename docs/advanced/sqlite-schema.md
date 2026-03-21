@@ -263,4 +263,3 @@ Now that you understand the database schema, you might want to explore:
 
 - [Concurrency](concurrency.md) - Learn how GigQ handles concurrent job processing
 - [Performance](performance.md) - Tips for optimizing performance
-- [Custom Job Types](custom-job-types.md) - How to extend GigQ with custom job types

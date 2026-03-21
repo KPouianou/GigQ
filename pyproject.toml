@@ -52,7 +52,7 @@ all = [
 
 [project.urls]
 Homepage = "https://github.com/kpouianou/gigq"
-Documentation = "https://gigq.github.io/gigq"
+Documentation = "https://kpouianou.github.io/GigQ/"
 Issues = "https://github.com/kpouianou/gigq/issues"
 
 [project.scripts]

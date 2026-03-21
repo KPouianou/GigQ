@@ -427,5 +427,4 @@ def monitor_workers(queue):
 Now that you understand how GigQ handles concurrency, you might want to explore:
 
 - [Performance Optimization](performance.md) - Additional strategies for optimizing performance
-- [Custom Job Types](custom-job-types.md) - Creating specialized job types
 - [SQLite Schema](sqlite-schema.md) - Understanding the underlying database schema

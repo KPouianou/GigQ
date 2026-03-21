@@ -639,4 +639,3 @@ def test_problematic_function(self):
 Now that you understand how to test GigQ, you might want to explore:
 
 - [Contributing Guide](contributing.md) - Learn how to contribute to GigQ
-- [Project Roadmap](roadmap.md) - See what's planned for future development

@@ -7,54 +7,29 @@
   <p style="margin: 0; padding: 0; color: #a0aec0;">Lightweight SQLite Job Queue</p>
 </div>
 
-GigQ is a lightweight job queue system with SQLite as its backend. It's designed for managing and executing small jobs ("gigs") locally with atomicity guarantees, particularly suited for processing tasks like data transformations, API calls, or batch operations, without the complexity of distributed job systems.
+A job queue that lives in a single file. No Redis. No infrastructure. Just `pip install` and go.
 
-## Key Features
-
-- **Simple by Design** - Define, queue, and process jobs with minimal setup and configuration
-
-- **SQLite Powered** - Built on SQLite for reliability and simplicity with no extra dependencies
-
-- **Workflow Support** - Create complex job workflows with dependencies and prioritization
-
-- **Lightweight Concurrency** - Process jobs in parallel with built-in locking and state management
-
-## What is GigQ?
-
-GigQ is a lightweight job queue system with SQLite as its backend. It's designed for managing and executing small jobs ("gigs") locally with atomicity guarantees, particularly suited for processing tasks like data transformations, API calls, or batch operations, without the complexity of distributed job systems.
+GigQ is a small Python library that runs background work through a **SQLite** database on disk. It fits teams and side projects that have outgrown a raw `for` loop with `try`/`except`, but don't want to operate Redis, a broker, or cloud queue infrastructure. Define functions, enqueue them, and run one or more workers on any machine that can see the database file.
 
 ```python
-from gigq import Job, JobQueue, Worker
+from gigq import task, JobQueue, Worker
 
-# Define a job function
-def process_data(filename, threshold=0.5):
-    # Process some data
-    print(f"Processing {filename} with threshold {threshold}")
-    return {"processed": True, "count": 42}
+@task()
+def greet(name="world"):
+    return f"Hello, {name}!"
 
-# Submit a job
 queue = JobQueue("jobs.db")
-job_id = queue.submit(Job(
-    name="process_data_job",
-    function=process_data,
-    params={"filename": "data.csv", "threshold": 0.7}
-))
-
-# Start a worker to process jobs
-worker = Worker("jobs.db")
-worker.start()
+greet.submit(queue, name="Alice")
+Worker("jobs.db").start()
 ```
 
-## Why GigQ?
+## Key Capabilities
 
-GigQ fills the gap between complex distributed job queues (like Celery or RQ) and simple task schedulers. It provides a balance of features and simplicity that's perfect for:
-
-- **Local data processing** - Process files, transform data, and generate reports
-- **Task automation** - Run scheduled tasks with dependencies and error handling
-- **API request batching** - Queue and process API requests with rate limiting
-- **Workflow orchestration** - Build simple workflows with dependencies and state management
-
-All without the overhead of setting up Redis, RabbitMQ, or other external services.
+- **Retry & crash recovery** — automatic retries with backoff; stuck jobs are reclaimed if a worker crashes
+- **Workflows with `parent_results`** — model pipelines as a DAG; dependent tasks receive parent return values automatically
+- **Concurrent workers** — multiple threads or processes coordinate through the database file
+- **CLI** — submit jobs, start workers, and inspect queues from the command line
+- **Zero dependencies** — just Python and SQLite, nothing else to install or run
 
 ## Job Lifecycle
 
@@ -79,9 +54,9 @@ stateDiagram-v2
 pip install gigq
 ```
 
-## Quick Start
+## Next Steps
 
-Check out the [Quick Start Guide](getting-started/quick-start.md) to begin using GigQ in your projects.
+Check out the [Quick Start Guide](getting-started/quick-start.md) to start using GigQ.
 
 ## License
 

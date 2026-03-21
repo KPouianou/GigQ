@@ -76,7 +76,6 @@ plugins:
 
 nav:
   - Home: index.md
-  - News: news.md
   - Getting Started:
       - Installation: getting-started/installation.md
       - Quick Start: getting-started/quick-start.md
@@ -92,8 +91,6 @@ nav:
   - Examples:
       - Parallel Tasks: examples/parallel-tasks.md
       - Hyperparameter Tuning: examples/hyperparameter-tuning.md
-      - Data Processing Pipeline: examples/data-processing.md
-      - Scheduled Background Tasks: examples/scheduled-tasks.md
   - Integrations:
       - MCP Server: integrations/mcp.md
   - API Reference:
@@ -104,11 +101,8 @@ nav:
       - Concurrency: advanced/concurrency.md
       - Performance: advanced/performance.md
       - Database Utilities: advanced/db_utils.md
-      - Custom Job Types: advanced/custom-job-types.md
-  - Development:
-      - Contributing: development/contributing.md
-      - Testing: development/testing.md
-      - Roadmap: development/roadmap.md
+  - Contributing: development/contributing.md
+  - Testing: development/testing.md
   - FAQ: faq.md
   - Changelog: changelog.md
 

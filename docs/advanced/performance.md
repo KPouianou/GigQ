@@ -684,4 +684,3 @@ Now that you understand how to optimize GigQ's performance, you might want to ex
 
 - [Concurrency](concurrency.md) - Learn more about GigQ's concurrency model
 - [SQLite Schema](sqlite-schema.md) - Understand the database schema for advanced optimization
-- [Custom Job Types](custom-job-types.md) - Creating specialized job types

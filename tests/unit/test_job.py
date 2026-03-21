@@ -51,6 +51,15 @@ class TestJob(unittest.TestCase):
         )
         self.assertTrue(job.pass_parent_results)
 
+    def test_job_retry_delay(self):
+        """Test that retry_delay can be set on a job."""
+        job = Job(
+            name="delayed_retry_job",
+            function=example_job_function,
+            retry_delay=30,
+        )
+        self.assertEqual(job.retry_delay, 30)
+
     def test_job_default_values(self):
         """Test default values for job parameters."""
         job = Job(name="simple_job", function=example_job_function)
@@ -61,6 +70,7 @@ class TestJob(unittest.TestCase):
         self.assertEqual(job.max_attempts, 3)
         self.assertEqual(job.timeout, 300)
         self.assertEqual(job.description, "")
+        self.assertEqual(job.retry_delay, 0)
 
     def test_job_unique_id(self):
         """Test that each job gets a unique ID."""

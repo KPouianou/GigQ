@@ -43,6 +43,7 @@ Where `MODULE.FUNCTION` is the fully qualified name of the function to execute (
 | `--max-attempts INT`                | Maximum execution attempts (default: 3)                              |
 | `--timeout INT`                     | Timeout in seconds (default: 300)                                    |
 | `--description TEXT`                | Job description                                                      |
+| `--retry-delay INT`                | Seconds to wait before retrying a failed job (default: 0)            |
 
 #### Example
 

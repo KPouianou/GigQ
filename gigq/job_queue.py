@@ -75,7 +75,9 @@ class JobQueue:
             started_at TEXT,
             completed_at TEXT,
             worker_id TEXT,
-            pass_parent_results INTEGER
+            pass_parent_results INTEGER,
+            retry_delay INTEGER DEFAULT 0,
+            retry_after TEXT
         )
         """
         )
@@ -113,6 +115,10 @@ class JobQueue:
         columns = {row[1] for row in cursor.fetchall()}
         if "pass_parent_results" not in columns:
             conn.execute("ALTER TABLE jobs ADD COLUMN pass_parent_results INTEGER")
+        if "retry_delay" not in columns:
+            conn.execute("ALTER TABLE jobs ADD COLUMN retry_delay INTEGER DEFAULT 0")
+        if "retry_after" not in columns:
+            conn.execute("ALTER TABLE jobs ADD COLUMN retry_after TEXT")
 
     def _get_connection(self) -> sqlite3.Connection:
         """
@@ -156,8 +162,9 @@ class JobQueue:
                 INSERT INTO jobs (
                     id, name, function_name, function_module, params, priority,
                     dependencies, max_attempts, timeout, description, status,
-                    created_at, updated_at, attempts, pass_parent_results
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    created_at, updated_at, attempts, pass_parent_results,
+                    retry_delay
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job.id,
@@ -175,6 +182,7 @@ class JobQueue:
                     now,
                     0,
                     pass_val,
+                    job.retry_delay,
                 ),
             )
 

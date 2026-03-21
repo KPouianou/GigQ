@@ -25,6 +25,7 @@ class Job:
         timeout: int = 300,
         description: str = "",
         pass_parent_results: Optional[bool] = None,
+        retry_delay: int = 0,
     ):
         """
         Initialize a new job.
@@ -44,6 +45,8 @@ class Job:
                 ``True`` always injects (when there are dependencies); ``False`` never
                 injects. Injected values are a dict mapping each parent job ID to
                 that job's deserialized result from the database.
+            retry_delay: Seconds to wait before a failed job becomes eligible for
+                retry. Defaults to 0 (immediate retry, preserving existing behavior).
         """
         self.id = str(uuid.uuid4())
         self.name = name
@@ -55,4 +58,5 @@ class Job:
         self.timeout = timeout
         self.description = description
         self.pass_parent_results = pass_parent_results
+        self.retry_delay = retry_delay
         self.created_at = datetime.now().isoformat()

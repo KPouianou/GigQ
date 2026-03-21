@@ -33,6 +33,7 @@ The `Job` class accepts the following parameters:
 | `max_attempts` | int      | No       | Maximum number of execution attempts (default: 3)        |
 | `timeout`      | int      | No       | Maximum runtime in seconds (default: 300)                |
 | `description`  | str      | No       | Optional description of the job                          |
+| `retry_delay`  | int      | No       | Seconds to wait before retrying a failed job (default: 0)|
 
 ### Job Function Requirements
 
@@ -154,6 +155,23 @@ When a job fails (raises an exception):
 
 1. If `attempts < max_attempts`, the job is requeued with `status="pending"`
 2. If `attempts >= max_attempts`, the job is marked as failed
+
+### Retry Delay
+
+By default, failed jobs become eligible for pickup immediately. For transient failures (API rate limits, temporary outages), use `retry_delay` to wait before retrying:
+
+```python
+# Wait 30 seconds between retries
+job = Job(
+    name="api_call",
+    function=call_api,
+    params={"url": "https://api.example.com/data"},
+    max_attempts=3,
+    retry_delay=30,
+)
+```
+
+When this job fails, it waits 30 seconds before any worker can pick it up again. The delay applies to each retry. Set `retry_delay=0` (the default) to preserve the original immediate-retry behavior.
 
 ## Job Dependencies
 

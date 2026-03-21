@@ -57,6 +57,11 @@ def job_attrs_func(a, b):
     pass
 
 
+@task(max_attempts=3, retry_delay=30)
+def retry_delay_func(x):
+    pass
+
+
 class MyClass:
     @staticmethod
     def my_static():
@@ -98,12 +103,16 @@ class TestTaskWrapping(unittest.TestCase):
     def test_qualname_preserved(self):
         self.assertEqual(bare_decorated.__qualname__, "bare_decorated")
 
+    def test_retry_delay_option(self):
+        self.assertEqual(retry_delay_func._options["retry_delay"], 30)
+
     def test_default_options_match_job_defaults(self):
         wrapped = task(sample_function)
         self.assertEqual(wrapped._options["priority"], 0)
         self.assertEqual(wrapped._options["max_attempts"], 3)
         self.assertEqual(wrapped._options["timeout"], 300)
         self.assertEqual(wrapped._options["description"], "")
+        self.assertEqual(wrapped._options["retry_delay"], 0)
 
     def test_default_name_from_function(self):
         wrapped = task(sample_function)
@@ -221,6 +230,10 @@ class TestTaskToJob(unittest.TestCase):
         job = wrapped.to_job()
         self.assertEqual(job.params, {})
 
+    def test_to_job_retry_delay(self):
+        job = retry_delay_func.to_job(x=1)
+        self.assertEqual(job.retry_delay, 30)
+
     def test_defaults_match_job_defaults(self):
         wrapped = task(sample_function)
         job = wrapped.to_job()
@@ -228,6 +241,7 @@ class TestTaskToJob(unittest.TestCase):
         self.assertEqual(job.max_attempts, 3)
         self.assertEqual(job.timeout, 300)
         self.assertEqual(job.description, "")
+        self.assertEqual(job.retry_delay, 0)
 
 
 class TestTaskValidation(unittest.TestCase):

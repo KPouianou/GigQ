@@ -38,7 +38,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     started_at TEXT,
     completed_at TEXT,
     worker_id TEXT,
-    pass_parent_results INTEGER
+    pass_parent_results INTEGER,
+    retry_delay INTEGER DEFAULT 0,
+    retry_after TEXT
 )
 ```
 
@@ -66,6 +68,8 @@ CREATE TABLE IF NOT EXISTS jobs (
 | `completed_at`    | TEXT    | ISO-format timestamp of when the job completed                               |
 | `worker_id`       | TEXT    | ID of the worker processing the job (if running)                             |
 | `pass_parent_results` | INTEGER | `NULL` = auto, `0` = off, `1` = always inject `parent_results` for dependent jobs |
+| `retry_delay`     | INTEGER | Seconds to wait before retrying a failed job (default: 0)            |
+| `retry_after`     | TEXT    | ISO-format timestamp before which the job should not be picked up    |
 
 ### Job Executions Table
 
@@ -148,6 +152,8 @@ erDiagram
         string started_at
         string completed_at
         string worker_id
+        int retry_delay
+        string retry_after
     }
 
     JOB_EXECUTIONS {
@@ -240,8 +246,8 @@ conn.close()
 ## Schema Migrations
 
 The schema is initialized when a `JobQueue` is created. GigQ performs small,
-idempotent upgrades (for example adding `pass_parent_results` to `jobs` if an
-older database file is missing that column). For other manual changes:
+idempotent upgrades (for example adding `pass_parent_results`, `retry_delay`,
+and `retry_after` to `jobs` if an older database file is missing those columns). For other manual changes:
 
 1. Backup your database
 2. Make changes manually or create a migration script

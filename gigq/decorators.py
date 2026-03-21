@@ -12,7 +12,7 @@ from typing import Any, Callable, Optional, Union
 from .job import Job
 
 _VALID_OPTIONS = frozenset(
-    {"name", "priority", "max_attempts", "timeout", "description"}
+    {"name", "priority", "max_attempts", "timeout", "description", "retry_delay"}
 )
 
 _JOB_DEFAULTS = {
@@ -20,6 +20,7 @@ _JOB_DEFAULTS = {
     "max_attempts": 3,
     "timeout": 300,
     "description": "",
+    "retry_delay": 0,
 }
 
 
@@ -90,6 +91,7 @@ class TaskWrapper:
             max_attempts=self._options["max_attempts"],
             timeout=self._options["timeout"],
             description=self._options["description"],
+            retry_delay=self._options["retry_delay"],
         )
 
     def submit(self, queue: "Any", /, **params: Any) -> str:
@@ -127,8 +129,9 @@ def task(
         def my_job(x):
             return x * 2
 
-    Job options (priority, max_attempts, timeout, description, name) are
-    fixed at decoration time. Use .submit(queue, **params) to enqueue.
+    Job options (priority, max_attempts, timeout, description, name,
+    retry_delay) are fixed at decoration time. Use .submit(queue, **params)
+    to enqueue.
     """
     if fn is not None:
         return TaskWrapper(fn, **options)

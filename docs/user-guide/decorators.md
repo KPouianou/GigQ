@@ -47,6 +47,7 @@ All options are fixed when the decorator is applied — they cannot be changed a
 | `max_attempts` | int  | 3       | Retries on failure before marking as failed |
 | `timeout`      | int  | 300     | Maximum runtime in seconds                  |
 | `description`  | str  | `""`    | Optional human-readable description         |
+| `retry_delay`  | int  | 0       | Seconds to wait before retrying after failure |
 
 ## Submitting Jobs
 

@@ -153,6 +153,7 @@ def submit_job(
     max_attempts: int = 3,
     timeout: int = 300,
     description: str = "",
+    retry_delay: int = 0,
 ) -> Dict[str, Any]:
     """
     Submit a single job referencing a module-level callable by import path.
@@ -178,6 +179,7 @@ def submit_job(
         max_attempts=max_attempts,
         timeout=timeout,
         description=description,
+        retry_delay=retry_delay,
     )
     queue = JobQueue(path)
     try:

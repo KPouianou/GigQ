@@ -52,6 +52,44 @@ job_without_retries = Job(
 
 The `max_attempts` parameter determines how many times a job will be executed before it's considered permanently failed.
 
+### Retry Delay
+
+For transient failures (API rate limits, temporary outages), retrying immediately often fails again. Use `retry_delay` to add a waiting period between retries:
+
+```python
+from gigq import Job
+
+# Wait 30 seconds between retries
+job_with_delay = Job(
+    name="rate_limited_job",
+    function=call_api,
+    params={"endpoint": "/data"},
+    max_attempts=5,
+    retry_delay=30,  # seconds to wait before retrying
+)
+```
+
+When a job with `retry_delay` fails, it is set back to pending but won't be picked up by any worker until the delay has elapsed. This works at the queue level — no sleep or busy-wait in the worker.
+
+The same option is available on the `@task` decorator:
+
+```python
+from gigq import task
+
+@task(max_attempts=3, timeout=60, retry_delay=30)
+def call_api(url):
+    resp = requests.get(url)
+    resp.raise_for_status()
+    return resp.json()
+```
+
+And via the CLI:
+
+```bash
+gigq submit my_module.call_api --name "Fetch data" \
+    --max-attempts 3 --retry-delay 30
+```
+
 ## Handling Timeouts
 
 Jobs that run for too long will be interrupted and potentially retried:

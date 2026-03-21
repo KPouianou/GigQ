@@ -187,16 +187,19 @@ class Worker:
             # Ensure transaction isolation
             conn.execute("BEGIN EXCLUSIVE TRANSACTION")
 
+            now_iso = datetime.now().isoformat()
+
             # First, check for ready jobs with no dependencies
             cursor = conn.execute(
                 """
                 SELECT j.* FROM jobs j
                 WHERE j.status = ?
                 AND (j.dependencies IS NULL OR j.dependencies = '[]')
+                AND (j.retry_after IS NULL OR j.retry_after <= ?)
                 ORDER BY j.priority DESC, j.created_at ASC
                 LIMIT 1
                 """,
-                (JobStatus.PENDING.value,),
+                (JobStatus.PENDING.value, now_iso),
             )
 
             job = cursor.fetchone()
@@ -204,8 +207,8 @@ class Worker:
             if not job:
                 # Then look for jobs with dependencies and check if they're all completed
                 cursor = conn.execute(
-                    "SELECT id, dependencies FROM jobs WHERE status = ? AND dependencies IS NOT NULL AND dependencies != '[]'",
-                    (JobStatus.PENDING.value,),
+                    "SELECT id, dependencies FROM jobs WHERE status = ? AND dependencies IS NOT NULL AND dependencies != '[]' AND (retry_after IS NULL OR retry_after <= ?)",
+                    (JobStatus.PENDING.value, now_iso),
                 )
 
                 potential_jobs = cursor.fetchall()
@@ -338,7 +341,7 @@ class Worker:
         with conn:
             cursor = conn.execute(
                 """
-                SELECT j.id, j.timeout, j.started_at, j.worker_id, j.attempts, j.max_attempts
+                SELECT j.id, j.timeout, j.started_at, j.worker_id, j.attempts, j.max_attempts, j.retry_delay
                 FROM jobs j
                 WHERE j.status = ?
                 """,
@@ -357,11 +360,16 @@ class Worker:
 
                 if now - started_at > timedelta(seconds=timeout_seconds):
                     # Job has timed out
-                    status = (
-                        JobStatus.PENDING
-                        if job["attempts"] < job["max_attempts"]
-                        else JobStatus.TIMEOUT
-                    )
+                    will_retry = job["attempts"] < job["max_attempts"]
+                    status = JobStatus.PENDING if will_retry else JobStatus.TIMEOUT
+
+                    retry_after = None
+                    if will_retry:
+                        retry_delay = job["retry_delay"] or 0
+                        if retry_delay > 0:
+                            retry_after = (
+                                now + timedelta(seconds=retry_delay)
+                            ).isoformat()
 
                     self._log.warning(
                         f"Job {job['id']} timed out after {timeout_seconds} seconds"
@@ -371,13 +379,14 @@ class Worker:
                         """
                         UPDATE jobs
                         SET status = ?, updated_at = ?, worker_id = NULL,
-                            error = ?
+                            error = ?, retry_after = ?
                         WHERE id = ?
                         """,
                         (
                             status.value,
                             now.isoformat(),
                             f"Job timed out after {timeout_seconds} seconds",
+                            retry_after,
                             job["id"],
                         ),
                     )
@@ -450,15 +459,22 @@ class Worker:
                 # We'll retry
                 conn = self._get_connection()
                 with conn:
-                    now = datetime.now().isoformat()
+                    now_dt = datetime.now()
+                    now = now_dt.isoformat()
+                    retry_delay = job.get("retry_delay") or 0
+                    retry_after = None
+                    if retry_delay > 0:
+                        retry_after = (
+                            now_dt + timedelta(seconds=retry_delay)
+                        ).isoformat()
                     conn.execute(
                         """
                         UPDATE jobs
                         SET status = ?, updated_at = ?, worker_id = NULL,
-                            error = ?
+                            error = ?, retry_after = ?
                         WHERE id = ?
                         """,
-                        (JobStatus.PENDING.value, now, str(e), job_id),
+                        (JobStatus.PENDING.value, now, str(e), retry_after, job_id),
                     )
 
                     # Update the execution record

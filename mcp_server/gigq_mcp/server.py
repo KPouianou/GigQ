@@ -37,6 +37,7 @@ def gigq_submit_job(
     max_attempts: int = 3,
     timeout: int = 300,
     description: str = "",
+    retry_delay: int = 0,
 ) -> Dict[str, Any]:
     """Enqueue a single GigQ job.
 
@@ -59,6 +60,7 @@ def gigq_submit_job(
         max_attempts=max_attempts,
         timeout=timeout,
         description=description,
+        retry_delay=retry_delay,
     )
 
 

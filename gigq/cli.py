@@ -68,6 +68,7 @@ def cmd_submit(args):
         max_attempts=args.max_attempts,
         timeout=args.timeout,
         description=args.description,
+        retry_delay=args.retry_delay,
     )
 
     # Submit the job
@@ -286,6 +287,12 @@ def main():
         "--timeout", type=int, default=300, help="Timeout in seconds"
     )
     submit_parser.add_argument("--description", help="Job description")
+    submit_parser.add_argument(
+        "--retry-delay",
+        type=int,
+        default=0,
+        help="Seconds to wait before retrying a failed job (default: 0)",
+    )
     submit_parser.set_defaults(func=cmd_submit)
 
     # Status command

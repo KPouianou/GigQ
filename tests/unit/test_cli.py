@@ -167,6 +167,7 @@ def test_function(value):
         args.max_attempts = 2
         args.timeout = 120
         args.description = "Test job description"
+        args.retry_delay = 0
 
         # Run the submit command
         cmd_submit(args)

@@ -86,13 +86,13 @@ pip install gigq
 
 The `gigq` command uses `--db` (default `gigq.db`) and a subcommand:
 
-| Command | Purpose |
-|--------|---------|
-| `gigq worker` | Run a worker; add `--concurrency N` for threaded workers |
-| `gigq list` | List jobs; optional `--status pending` (etc.) |
-| `gigq status <id> --show-result` | Inspect a job and its result |
-| `gigq stats` | Aggregate counts by status |
-| `gigq submit` | Enqueue by import path `module.function` |
+| Command                          | Purpose                                                  |
+| -------------------------------- | -------------------------------------------------------- |
+| `gigq worker`                    | Run a worker; add `--concurrency N` for threaded workers |
+| `gigq list`                      | List jobs; optional `--status pending` (etc.)            |
+| `gigq status <id> --show-result` | Inspect a job and its result                             |
+| `gigq stats`                     | Aggregate counts by status                               |
+| `gigq submit`                    | Enqueue by import path `module.function`                 |
 
 ## How it works
 
@@ -100,19 +100,19 @@ Jobs, dependencies, and results live in **SQLite** tables (`jobs`, `job_executio
 
 ## Examples
 
-| Example | Description |
-|--------|-------------|
-| [`examples/parallel_tasks.py`](examples/parallel_tasks.py) | Fan-out workers plus a fan-in task using `parent_results` |
-| [`examples/data_pipeline.py`](examples/data_pipeline.py) | Linear pipeline: generate → transform → format via `parent_results` |
+| Example                                                                  | Description                                                                |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| [`examples/parallel_tasks.py`](examples/parallel_tasks.py)               | Fan-out workers plus a fan-in task using `parent_results`                  |
+| [`examples/data_pipeline.py`](examples/data_pipeline.py)                 | Linear pipeline: generate → transform → format via `parent_results`        |
 | [`examples/hyperparameter_tuning.py`](examples/hyperparameter_tuning.py) | scikit-learn search with sequential vs parallel workers and crash recovery |
 
 ## Integrations
 
-- **[`mcp_server/`](mcp_server/)** — **Model Context Protocol** server (`gigq-mcp`) so agents can submit jobs, inspect queues, and read results. See the [MCP integration docs](https://gigq.github.io/gigq/integrations/mcp/).
+- **[`mcp_server/`](mcp_server/)** — **Model Context Protocol** server (`gigq-mcp`) so agents can submit jobs, inspect queues, and read results. See the [MCP integration docs](https://kpouianou.github.io/GigQ/integrations/mcp/).
 
 ## Documentation
 
-Full guides and API reference: **[https://gigq.github.io/gigq](https://gigq.github.io/gigq)**
+Full guides and API reference: **[https://kpouianou.github.io/GigQ/](https://kpouianou.github.io/GigQ/)**
 
 ## License
 

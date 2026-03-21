@@ -108,15 +108,15 @@ uv run mcp install path/to/gigq/mcp_server/gigq_mcp/server.py
 
 ## Tools
 
-| Tool | Purpose |
-|------|---------|
-| `gigq_submit_job` | Enqueue one job (`function_path`, `name`, `params`, optional priority/timeout/…). |
-| `gigq_get_job_status` | Full job record (status, error, executions, …). |
-| `gigq_get_job_result` | Deserialized return value when `status == completed`. |
-| `gigq_list_jobs` | List jobs, optional status filter. |
-| `gigq_queue_stats` | Per-status counts + interpretation when pending jobs are not running. |
-| `gigq_cancel_job` | Cancel a **pending** job. |
-| `gigq_requeue_job` | Requeue failed / timeout / cancelled jobs. |
+| Tool                   | Purpose                                                                            |
+| ---------------------- | ---------------------------------------------------------------------------------- |
+| `gigq_submit_job`      | Enqueue one job (`function_path`, `name`, `params`, optional priority/timeout/…).  |
+| `gigq_get_job_status`  | Full job record (status, error, executions, …).                                    |
+| `gigq_get_job_result`  | Deserialized return value when `status == completed`.                              |
+| `gigq_list_jobs`       | List jobs, optional status filter.                                                 |
+| `gigq_queue_stats`     | Per-status counts + interpretation when pending jobs are not running.              |
+| `gigq_cancel_job`      | Cancel a **pending** job.                                                          |
+| `gigq_requeue_job`     | Requeue failed / timeout / cancelled jobs.                                         |
 | `gigq_submit_workflow` | Multi-step `@task` DAG (`steps` with `id`, `function`, `params`, `depends_on`, …). |
 
 Every successful submit response includes **`worker_command_example`** (e.g. `gigq --db … worker --concurrency 4`). **`gigq_queue_stats`** highlights when **`pending_without_runner`** is likely (pending &gt; 0 and running = 0).
@@ -157,4 +157,4 @@ This exercises each handler with a temporary database—no MCP client required.
 
 ## Documentation
 
-Full documentation also lives on the [GigQ docs site](https://gigq.github.io/gigq/) under **Integrations → MCP Server**.
+Full documentation also lives on the [GigQ docs site](https://kpouianou.github.io/GigQ/) under **Integrations → MCP Server**.

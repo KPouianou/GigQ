@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-03-21
+
+### Added
+
+- `parent_results`: dependent jobs automatically receive parent job results via a `parent_results` parameter. Auto-detected from function signature, or controlled via `Job(pass_parent_results=True/False/None)` and `Workflow.add_task(..., pass_parent_results=...)`.
+- `examples/data_pipeline.py`: sequential pipeline example demonstrating `parent_results` chaining (generate → transform → format).
+- MCP server (`mcp_server/`): Model Context Protocol server for AI agent integration — submit jobs and workflows, monitor queues, retrieve results. Separate package (`gigq-mcp`).
+- Docs integration page for the MCP server.
+
+### Changed
+
+- Library no longer configures logging on import. `NullHandler` is used by default (standard Python library convention). Call `setup_logging()` explicitly for verbose output. The CLI configures its own logging.
+- `parallel_tasks.py` example updated: `summarise` now uses `parent_results` to receive and process parent job outputs.
+
+### Fixed
+
+- Code formatting (Black) in `job_queue.py` and `tests/job_functions.py`.
+
 ## [0.3.0] - 2026-03-16
 
 ### Added
@@ -67,7 +85,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Archive processing example
 - Documentation with MkDocs
 
-[Unreleased]: https://github.com/kpouianou/gigq/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/kpouianou/gigq/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/kpouianou/gigq/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/kpouianou/gigq/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/kpouianou/gigq/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/kpouianou/gigq/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/kpouianou/gigq/compare/v0.1.1...v0.2.0

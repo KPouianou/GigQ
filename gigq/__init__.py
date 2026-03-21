@@ -29,11 +29,11 @@ try:
         __version__ = version("gigq")
     except PackageNotFoundError:
         # Package is not installed
-        __version__ = "0.4.0"  # Default development version
+        __version__ = "0.5.0"  # Default development version
 except ImportError:
     # Fallback for Python < 3.8
     # Make importlib_metadata optional, only needed for Python < 3.8
-    __version__ = "0.4.0"  # Default development version
+    __version__ = "0.5.0"  # Default development version
 
 # Define what gets imported with "from gigq import *"
 __all__ = [

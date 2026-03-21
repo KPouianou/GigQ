@@ -1,13 +1,10 @@
-# This file should replace the existing pyproject.toml in the root directory
-# The key change is removing tabulate from dependencies
-
 [build-system]
 requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "gigq"
-version = "0.4.0"
+version = "0.5.0"
 description = "A lightweight job queue system with SQLite backend and zero dependencies"
 readme = "README.md"
 requires-python = ">=3.10"

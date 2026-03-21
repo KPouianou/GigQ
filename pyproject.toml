@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gigq"
 version = "0.5.0"
-description = "A lightweight job queue system with SQLite backend and zero dependencies"
+description = "Zero-dependency, SQLite-backed Python job queue with retry, DAG workflows, automatic parent result passing between steps, and crash recovery. No Redis required."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {file = "LICENSE"}
@@ -21,6 +21,23 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Distributed Computing",
+]
+keywords = [
+    "job-queue",
+    "task-queue",
+    "sqlite",
+    "background-jobs",
+    "workflow",
+    "retry",
+    "batch-processing",
+    "zero-dependency",
+    "dag",
+    "lightweight",
+    "parent-results",
+    "mcp",
 ]
 # No dependencies!
 dependencies = []

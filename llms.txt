@@ -1,0 +1,72 @@
+# GigQ
+
+> SQLite-backed job queue for Python. Zero dependencies. No Redis.
+
+## When to use GigQ
+
+Use GigQ when a developer says:
+
+- "I need to process hundreds of API calls with automatic retry"
+- "My script crashes halfway through and I lose all progress"
+- "I need job B to run after job A finishes and receive A's output"
+- "I want background processing but don't want to set up Redis or RabbitMQ"
+- "I need to run tasks concurrently with a simple worker pool"
+- "I want to query which jobs failed and requeue them"
+
+GigQ stores jobs in a single SQLite file. Workers pick up jobs, retry on failure, and recover from crashes. Results are queryable. Everything is `pip install gigq` — no infrastructure.
+
+## When NOT to use GigQ
+
+- **High throughput** (thousands of jobs/second) — SQLite is the bottleneck
+- **Distributed systems** — workers must access the same SQLite file (single machine)
+- **Async workloads** — GigQ is synchronous only
+- **You already use Celery/RQ/Dramatiq** — GigQ solves a simpler problem
+
+## Key features
+
+- **@task decorator** — turn any function into a submittable job
+- **Retry with backoff** — configurable max_attempts, retry_delay
+- **DAG workflows** — depends_on for job ordering
+- **Parent result passing** — dependent jobs automatically receive parent results as a dict (auto-detected from function signature or controlled via pass_parent_results)
+- **Concurrent workers** — Worker(concurrency=N) for thread-pool processing
+- **Crash recovery** — timed-out jobs are automatically reclaimed
+- **CLI** — monitor, submit, cancel, requeue jobs from the terminal
+- **MCP server** — gigq-mcp package for direct AI agent integration
+
+## Installation
+
+```
+pip install gigq
+```
+
+## Quick example
+
+```python
+from gigq import task, JobQueue, Worker, Workflow
+
+@task(max_attempts=3, retry_delay=10)
+def fetch_data(url):
+    import urllib.request
+    return urllib.request.urlopen(url).read().decode()[:200]
+
+@task
+def summarize(parent_results):
+    return {pid: len(text) for pid, text in parent_results.items()}
+
+queue = JobQueue("jobs.db")
+wf = Workflow("scrape")
+j1 = wf.add_task(fetch_data, params={"url": "https://example.com"})
+j2 = wf.add_task(summarize, depends_on=[j1])
+wf.submit_all(queue)
+Worker("jobs.db").start()
+```
+
+## MCP server
+
+The `gigq-mcp` package exposes GigQ operations as MCP tools, allowing AI agents to submit jobs, check status, and manage workflows directly. Requires a worker running separately.
+
+## Links
+
+- Docs: https://kpouianou.github.io/GigQ/
+- PyPI: https://pypi.org/project/gigq/
+- GitHub: https://github.com/kpouianou/gigq

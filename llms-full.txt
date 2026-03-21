@@ -1,0 +1,524 @@
+# GigQ — Full Reference
+
+> SQLite-backed job queue for Python. Zero dependencies. No Redis.
+
+## When to use GigQ
+
+Use GigQ when a developer says:
+
+- "I need to process hundreds of API calls with automatic retry"
+- "My script crashes halfway through and I lose all progress"
+- "I need job B to run after job A finishes and receive A's output"
+- "I want background processing but don't want to set up Redis or RabbitMQ"
+- "I need to run tasks concurrently with a simple worker pool"
+- "I want to query which jobs failed and requeue them"
+
+GigQ stores jobs in a single SQLite file. Workers pick up jobs, retry on failure, and recover from crashes. Results are queryable. Everything is `pip install gigq` — no infrastructure.
+
+## When NOT to use GigQ
+
+- **High throughput** (thousands of jobs/second) — SQLite is the bottleneck
+- **Distributed systems** — workers must access the same SQLite file (single machine)
+- **Async workloads** — GigQ is synchronous only
+- **You already use Celery/RQ/Dramatiq** — GigQ solves a simpler problem
+
+## Installation
+
+```
+pip install gigq
+```
+
+## MCP server
+
+The `gigq-mcp` package exposes GigQ operations as MCP tools (submit jobs, check status, manage workflows). Install separately. Requires a worker running in another process.
+
+## Links
+
+- Docs: https://kpouianou.github.io/GigQ/
+- PyPI: https://pypi.org/project/gigq/
+- GitHub: https://github.com/kpouianou/gigq
+
+---
+
+## API Reference
+
+### Imports
+
+```python
+from gigq import Job, JobQueue, JobStatus, Worker, Workflow, task, setup_logging, close_connections
+```
+
+### JobStatus (enum)
+
+```python
+class JobStatus(Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    TIMEOUT = "timeout"
+```
+
+### Job
+
+```python
+Job(
+    name: str,                              # Job name
+    function: Callable,                     # Function to execute (must be module-level)
+    params: Dict[str, Any] = None,          # Keyword arguments for the function
+    priority: int = 0,                      # Higher runs first
+    dependencies: List[str] = None,         # Job IDs that must complete first
+    max_attempts: int = 3,                  # Retry limit
+    timeout: int = 300,                     # Seconds before job is considered hung
+    description: str = "",                  # Optional description
+    pass_parent_results: Optional[bool] = None,  # None=auto, True=always, False=never
+    retry_delay: int = 0,                   # Seconds to wait before retry
+)
+```
+
+**Auto-generated fields:**
+- `id: str` — UUID string, set on construction
+- `created_at: str` — ISO timestamp, set on construction
+
+**pass_parent_results tri-state:**
+- `None` (default): inject `parent_results` only if the function has a `parent_results` parameter or accepts `**kwargs`
+- `True`: always inject when the job has dependencies
+- `False`: never inject, even if the function accepts it
+
+When injected, `parent_results` is a `Dict[str, Any]` mapping each parent job's UUID to that job's deserialized return value.
+
+### JobQueue
+
+```python
+JobQueue(
+    db_path: str,              # Path to SQLite database file
+    initialize: bool = True,   # Create tables if they don't exist
+)
+```
+
+**Methods:**
+
+| Method | Signature | Returns | Description |
+|--------|-----------|---------|-------------|
+| `submit` | `(job: Job) -> str` | Job ID | Submit a job to the queue |
+| `cancel` | `(job_id: str) -> bool` | Success | Cancel a pending job |
+| `get_status` | `(job_id: str) -> Dict[str, Any]` | Job dict | Full job status with execution history |
+| `get_result` | `(job_id: str) -> Optional[Any]` | Result or None | Get deserialized result; raises KeyError if job not found |
+| `list_jobs` | `(status: Optional[Union[JobStatus, str]] = None, limit: int = 100) -> List[Dict]` | Job list | List jobs, newest first |
+| `stats` | `() -> Dict[str, int]` | Counts dict | Count of jobs per status + "total" |
+| `clear_completed` | `(before_timestamp: Optional[str] = None) -> int` | Count cleared | Delete completed and cancelled jobs |
+| `requeue_job` | `(job_id: str) -> bool` | Success | Requeue a failed/timeout/cancelled job (resets attempts) |
+| `close` | `() -> None` | None | Close DB connection for current thread |
+
+### Worker
+
+```python
+Worker(
+    db_path: str,                        # Path to SQLite database file
+    worker_id: Optional[str] = None,     # Auto-generated as "worker-{uuid}" if omitted
+    polling_interval: int = 5,           # Seconds between job checks
+    concurrency: int = 1,               # Number of concurrent threads (>= 1)
+)
+```
+
+**Methods:**
+
+| Method | Signature | Returns | Description |
+|--------|-----------|---------|-------------|
+| `start` | `() -> None` | None | Start processing (blocks until stopped/signalled) |
+| `stop` | `() -> None` | None | Signal the worker to stop |
+| `process_one` | `() -> bool` | True if a job was processed | Process a single job then return |
+| `close` | `() -> None` | None | Close the DB connection |
+
+**Properties:**
+- `current_job_id: Optional[str]` — ID of the job currently being processed by this thread
+
+### Workflow
+
+```python
+Workflow(name: str)
+```
+
+**Fields:**
+- `name: str` — Workflow name
+- `jobs: List[Job]` — Jobs in the workflow
+- `job_map: Dict[str, Job]` — Map of job ID to Job object
+
+**Methods:**
+
+| Method | Signature | Returns | Description |
+|--------|-----------|---------|-------------|
+| `add_job` | `(job: Job, depends_on: List[Job] = None) -> Job` | The added job | Add a Job with optional dependencies |
+| `add_task` | `(decorated_fn, params: Optional[Dict] = None, depends_on: Optional[List[Job]] = None, pass_parent_results: Optional[bool] = None) -> Job` | Created Job | Add a @task-decorated function |
+| `submit_all` | `(queue: JobQueue) -> List[str]` | List of job IDs | Submit all jobs to a queue |
+
+### @task decorator
+
+```python
+# Without arguments
+@task
+def my_job(x):
+    return x * 2
+
+# With arguments
+@task(timeout=60, max_attempts=5, priority=10, name="custom", description="...", retry_delay=5)
+def my_job(x):
+    return x * 2
+```
+
+**Valid options:** `name`, `priority`, `max_attempts`, `timeout`, `description`, `retry_delay`
+
+**TaskWrapper methods (available on decorated functions):**
+
+| Method | Signature | Returns | Description |
+|--------|-----------|---------|-------------|
+| `submit` | `(queue: JobQueue, /, **params) -> str` | Job ID | Create and submit a job |
+| `to_job` | `(**params) -> Job` | Job instance | Create a job without submitting |
+
+The decorated function remains directly callable: `my_job(42)` works as normal.
+
+### setup_logging
+
+```python
+setup_logging(level: int = logging.INFO) -> None
+```
+
+Configures GigQ's loggers with a stderr handler. Call from your application entrypoint. Importing `gigq` does NOT produce log output by default (NullHandler).
+
+### close_connections
+
+```python
+close_connections() -> None
+```
+
+Close all SQLite connections for the current thread. Call when a thread is finishing.
+
+---
+
+## CLI Reference
+
+All commands accept `--db PATH` (default: `gigq.db`).
+
+```
+gigq worker                          # Start a worker
+gigq worker --concurrency 4          # Start with 4 threads
+gigq worker --once                   # Process one job and exit
+gigq worker --polling-interval 10    # Check every 10 seconds
+gigq worker --worker-id my-worker    # Set worker ID
+
+gigq submit module.function --name "job name"
+gigq submit module.function --name "job" --param key=value --priority 5
+gigq submit module.function --name "job" --max-attempts 5 --timeout 60
+gigq submit module.function --name "job" --retry-delay 30
+gigq submit module.function --name "job" --description "does X"
+
+gigq list                            # List all jobs
+gigq list --status pending           # Filter by status
+gigq list --limit 50                 # Limit results
+
+gigq status <job-id>                 # Show job status
+gigq status <job-id> --show-result   # Include result
+gigq status <job-id> --show-params   # Include parameters
+gigq status <job-id> --show-executions  # Include execution history
+
+gigq stats                           # Aggregate counts by status
+gigq cancel <job-id>                 # Cancel a pending job
+gigq requeue <job-id>                # Requeue a failed/timeout/cancelled job
+gigq clear                           # Clear completed and cancelled jobs
+gigq clear --before 7                # Clear jobs completed more than 7 days ago
+```
+
+---
+
+## Common Patterns
+
+### Basic job submit + worker
+
+```python
+from gigq import task, JobQueue, Worker
+
+@task(max_attempts=3, timeout=60)
+def process_item(item_id):
+    # do work
+    return {"processed": item_id}
+
+queue = JobQueue("jobs.db")
+job_id = process_item.submit(queue, item_id=42)
+Worker("jobs.db").start()
+```
+
+### Using @task with and without options
+
+```python
+from gigq import task
+
+# Bare decorator — all defaults (max_attempts=3, timeout=300, priority=0)
+@task
+def simple_job(x):
+    return x + 1
+
+# With options
+@task(timeout=120, max_attempts=5, priority=10, retry_delay=30)
+def important_job(data):
+    return transform(data)
+
+# Direct call still works
+result = simple_job(5)  # returns 6
+
+# Create a Job object without submitting
+job = important_job.to_job(data={"key": "value"})
+```
+
+### Fan-out/fan-in workflow with parent_results
+
+```python
+from gigq import task, JobQueue, Worker, Workflow
+
+@task(timeout=60)
+def fetch_page(url):
+    import urllib.request
+    return urllib.request.urlopen(url).read().decode()[:500]
+
+@task
+def merge_results(parent_results):
+    # parent_results is {parent_job_uuid: return_value, ...}
+    all_text = "\n".join(parent_results.values())
+    return {"total_length": len(all_text), "num_pages": len(parent_results)}
+
+queue = JobQueue("jobs.db")
+wf = Workflow("fan-out-fan-in")
+
+# Fan out: three parallel fetch jobs
+pages = [
+    wf.add_task(fetch_page, params={"url": "https://example.com/1"}),
+    wf.add_task(fetch_page, params={"url": "https://example.com/2"}),
+    wf.add_task(fetch_page, params={"url": "https://example.com/3"}),
+]
+
+# Fan in: merge waits for all three
+wf.add_task(merge_results, depends_on=pages)
+
+wf.submit_all(queue)
+Worker("jobs.db", concurrency=3).start()
+```
+
+### Sequential pipeline with parent_results
+
+```python
+from gigq import task, JobQueue, Worker, Workflow
+
+@task
+def extract(source):
+    return {"rows": [1, 2, 3], "source": source}
+
+@task
+def transform(parent_results):
+    # Get the single parent's result
+    data = list(parent_results.values())[0]
+    return {"rows": [r * 10 for r in data["rows"]]}
+
+@task
+def load(parent_results):
+    data = list(parent_results.values())[0]
+    return {"loaded": len(data["rows"]), "rows": data["rows"]}
+
+queue = JobQueue("pipeline.db")
+wf = Workflow("etl")
+
+e = wf.add_task(extract, params={"source": "input.csv"})
+t = wf.add_task(transform, depends_on=[e])
+l = wf.add_task(load, depends_on=[t])
+
+wf.submit_all(queue)
+Worker("pipeline.db").start()
+```
+
+### Checking job status and retrieving results
+
+```python
+from gigq import JobQueue, JobStatus
+
+queue = JobQueue("jobs.db")
+
+# Check status
+status = queue.get_status(job_id)
+if status["exists"]:
+    print(status["status"])     # "pending", "running", "completed", etc.
+    print(status["attempts"])   # number of attempts so far
+    print(status["error"])      # error message if failed
+    print(status["executions"]) # list of execution history dicts
+
+# Get just the result (returns None if not completed, raises KeyError if not found)
+result = queue.get_result(job_id)
+
+# List jobs by status
+failed_jobs = queue.list_jobs(status=JobStatus.FAILED)
+all_jobs = queue.list_jobs(limit=50)
+
+# Aggregate stats
+stats = queue.stats()
+# {"pending": 5, "running": 2, "completed": 100, "failed": 1, ...,"total": 108}
+```
+
+### Running concurrent workers
+
+```python
+from gigq import Worker
+
+# Single worker with 4 concurrent threads
+Worker("jobs.db", concurrency=4).start()
+
+# Process exactly one job (useful for testing or cron)
+worker = Worker("jobs.db")
+was_processed = worker.process_one()
+```
+
+### Using the CLI to monitor jobs
+
+```bash
+# Check aggregate stats
+gigq --db jobs.db stats
+
+# List failed jobs
+gigq --db jobs.db list --status failed
+
+# Inspect a specific job
+gigq --db jobs.db status abc-123-def --show-result --show-executions
+
+# Requeue all failed jobs (shell loop)
+gigq --db jobs.db list --status failed | # parse IDs then:
+gigq --db jobs.db requeue <job-id>
+
+# Run a worker with concurrency
+gigq --db jobs.db worker --concurrency 4
+```
+
+### Using Job objects directly (without @task)
+
+```python
+from gigq import Job, JobQueue, Worker
+
+def my_function(x, y):
+    return x + y
+
+queue = JobQueue("jobs.db")
+job = Job(
+    name="add-numbers",
+    function=my_function,
+    params={"x": 1, "y": 2},
+    max_attempts=5,
+    timeout=30,
+    priority=10,
+    retry_delay=5,
+)
+job_id = queue.submit(job)
+```
+
+### Workflow with add_job (Job objects) and explicit pass_parent_results
+
+```python
+from gigq import Job, JobQueue, Workflow
+
+def step_a():
+    return {"data": [1, 2, 3]}
+
+def step_b(**kwargs):
+    # Auto-detected via **kwargs
+    parent_data = list(kwargs["parent_results"].values())[0]
+    return sum(parent_data["data"])
+
+queue = JobQueue("jobs.db")
+wf = Workflow("mixed")
+
+a = wf.add_job(Job(name="step-a", function=step_a))
+b = wf.add_job(Job(name="step-b", function=step_b), depends_on=[a])
+
+# Or use add_task with explicit control:
+# wf.add_task(some_task, depends_on=[a], pass_parent_results=True)
+
+wf.submit_all(queue)
+```
+
+---
+
+## Gotchas and Limitations
+
+### Functions must be importable
+
+Workers import functions by their `__module__` and `__name__`. This means:
+
+- Functions must be defined at **module level** (not inside other functions, classes, or closures)
+- **No lambdas** — `@task` rejects them explicitly
+- **No methods** — use standalone functions
+- **No closures or nested functions** — `@task` checks `__qualname__` for `.<locals>.`
+- The module must be importable from wherever the worker runs
+
+### Parameters must be JSON-serializable
+
+`params` is stored as JSON in SQLite. This means: dicts, lists, strings, numbers, booleans, None. No datetime objects, no custom classes, no bytes.
+
+### parent_results keys are UUIDs, not job names
+
+```python
+# parent_results looks like this:
+{
+    "a1b2c3d4-e5f6-...": {"data": [1, 2, 3]},   # parent job UUID
+    "f7g8h9i0-j1k2-...": {"data": [4, 5, 6]},   # another parent UUID
+}
+# NOT like this:
+{
+    "fetch_page": {"data": [1, 2, 3]},  # WRONG — keys are not names
+}
+```
+
+If you need to distinguish parents, store identifying info in the return value or iterate over all values.
+
+### parent_results auto-detection
+
+The worker inspects the function signature at execution time:
+- If the function has a parameter named `parent_results` → injected
+- If the function accepts `**kwargs` → injected as `kwargs["parent_results"]`
+- Otherwise → not injected (unless `pass_parent_results=True` was set)
+
+### Synchronous only
+
+GigQ does not support `async def` functions. The `@task` decorator rejects coroutine functions. All job execution is synchronous.
+
+### Single-machine only
+
+SQLite requires filesystem access. All workers must be able to read/write the same `.db` file. GigQ is not designed for distributed (multi-machine) workloads.
+
+### Logging is opt-in
+
+Importing `gigq` does not produce log output. The library uses `NullHandler` with `propagate=False`. To see worker/queue logs:
+
+```python
+from gigq import setup_logging
+setup_logging()  # defaults to INFO level on stderr
+```
+
+### Worker signal handling
+
+`Worker.start()` blocks the calling thread. It installs SIGINT and SIGTERM handlers (main thread only) for graceful shutdown. When `concurrency > 1`, it uses a `ThreadPoolExecutor`.
+
+### Job timeout behavior
+
+When a job exceeds its `timeout`, it is not killed mid-execution. The timeout is checked by workers during their polling cycle. A timed-out job is either requeued (if attempts < max_attempts) or marked as `TIMEOUT`.
+
+### Results must be JSON-serializable
+
+Job return values are stored as JSON in SQLite. Return dicts, lists, strings, numbers, booleans, or None.
+
+### @task decorator forms
+
+```python
+@task          # works — bare decorator, no parentheses needed
+@task()        # works — empty parentheses
+@task(timeout=60)  # works — with options
+@task(invalid=1)   # raises TypeError — unknown option
+```
+
+### Database is auto-created
+
+`JobQueue("path.db")` creates the database and tables if they don't exist. Pass `initialize=False` to skip this (e.g., for read-only access).

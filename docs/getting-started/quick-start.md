@@ -1,7 +1,5 @@
 # Quick Start
 
-This guide walks you through defining tasks, submitting them, running a worker, and building workflows.
-
 ## Define and Run a Task
 
 The `@task` decorator is the simplest way to use GigQ. Decorate a function, submit it to a queue, and start a worker:

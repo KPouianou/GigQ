@@ -10,9 +10,7 @@
   <a href="https://github.com/kpouianou/gigq/actions/workflows/ci.yml"><img alt="Build Status" src="https://img.shields.io/github/actions/workflow/status/kpouianou/gigq/ci.yml?branch=main&style=flat-square"></a>
 </p>
 
-**A job queue that lives in a single file. No Redis. No infrastructure. Just `pip install` and go.**
-
-GigQ is a small Python library that runs background work through a **SQLite** database on disk. It fits teams and side projects that have outgrown a raw `for` loop with `try`/`except`, but do not want to operate Redis, a broker, or cloud queue infrastructure. You define functions, enqueue them, and run one or more workers on any machine that can see the database file.
+GigQ is a Python job queue backed by SQLite. It fits teams and projects that have outgrown a raw `for` loop with `try`/`except`, but don't want to run Redis or any other broker. Define functions, enqueue them, and run one or more workers on any machine that can reach the database file.
 
 ```python
 from gigq import task, JobQueue, Worker
@@ -43,7 +41,7 @@ You get **retries with backoff**, **crash recovery** (stuck work is reclaimed), 
 
 ## Workflows and `parent_results`
 
-Model pipelines as a **DAG**: add `@task` functions to a `Workflow`, wire dependencies, then submit once. Dependent tasks can declare a `parent_results` argument; GigQ injects a dict of **parent job id → deserialized result** so fan-out and fan-in steps can pass data without serializing it through job parameters.
+Wire `@task` functions into a `Workflow`, declare dependencies, and submit once. Dependent tasks can declare a `parent_results` argument; GigQ injects a dict of **parent job id → deserialized result** so fan-out and fan-in steps can pass data without going through job parameters.
 
 ```python
 from gigq import task, JobQueue, Workflow, Worker

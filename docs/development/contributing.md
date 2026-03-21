@@ -1,6 +1,6 @@
 # Contributing to GigQ
 
-Thank you for your interest in contributing to GigQ! This guide will help you get started with the development process and outline how to contribute to the project.
+This guide covers the development setup and contribution process.
 
 ## Code of Conduct
 
@@ -214,12 +214,4 @@ The release process is handled by the project maintainers. If you're interested 
 
 ## Getting Help
 
-If you need help with contributing to GigQ, you can:
-
-- Open an issue on GitHub
-- Reach out to the project maintainers
-- Check the documentation for guidance
-
-## Thank You!
-
-Thank you for contributing to GigQ! Your efforts help make this project better for everyone.
+Open an issue on GitHub if you're stuck or have questions about the contribution process.

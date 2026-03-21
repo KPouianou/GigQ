@@ -1,12 +1,10 @@
 # Frequently Asked Questions
 
-This page answers common questions about using GigQ. If you don't find your question answered here, please check the detailed documentation or create an issue on GitHub.
-
 ## General Questions
 
 ### What is GigQ?
 
-GigQ is a lightweight job queue system with SQLite as its backend. It's designed for managing and executing small jobs ("gigs") locally with atomicity guarantees, particularly suited for processing tasks that don't require a distributed system.
+GigQ is a Python job queue that uses SQLite as its backend. It's built for work you'd otherwise run in a loop — data processing, ETL, background tasks — on a single machine, without standing up a broker.
 
 ### When should I use GigQ?
 
@@ -249,7 +247,7 @@ GigQ uses SQLite, which provides basic security through file permissions. Howeve
 - No encryption is used for data at rest
 - Authentication and authorization must be handled by your application
 
-For sensitive data, consider implementing appropriate security measures in your application.
+If you're storing sensitive data in job parameters or results, treat the database file accordingly — restrict its permissions and don't put it on a shared network path.
 
 ### How do I backup my GigQ data?
 
@@ -319,11 +317,7 @@ Yes, GigQ can be used with any Python web framework. Typical patterns:
 
 ### Can I extend GigQ with custom features?
 
-Yes, GigQ is designed to be extensible. You can:
-
-- Subclass `Job`, `Worker`, or `JobQueue` to customize behavior
-- Create utility functions for common patterns
-- Integrate with other systems through job functions
+Yes. You can subclass `Job`, `Worker`, or `JobQueue` to customize behavior, or build wrappers around job functions for common patterns.
 
 ### Can I use GigQ with a different database backend?
 
@@ -361,12 +355,7 @@ while True:
 
 ### How can I contribute to GigQ?
 
-We welcome contributions! You can:
-
-- Report bugs and suggest features via GitHub issues
-- Submit pull requests for bug fixes or enhancements
-- Improve documentation
-- Share examples and use cases
+PRs are welcome. You can report bugs and suggest features via GitHub issues, submit fixes or enhancements, or improve the docs. See the [Contributing guide](development/contributing.md) for setup instructions.
 
 ### How do I run the GigQ tests?
 

@@ -7,9 +7,7 @@
   <p style="margin: 0; padding: 0; color: #a0aec0;">Lightweight SQLite Job Queue</p>
 </div>
 
-A job queue that lives in a single file. No Redis. No infrastructure. Just `pip install` and go.
-
-GigQ is a small Python library that runs background work through a **SQLite** database on disk. It fits teams and side projects that have outgrown a raw `for` loop with `try`/`except`, but don't want to operate Redis, a broker, or cloud queue infrastructure. Define functions, enqueue them, and run one or more workers on any machine that can see the database file.
+GigQ is a Python job queue backed by SQLite. It fits teams and projects that have outgrown a raw `for` loop with `try`/`except`, but don't want to run Redis or any other broker. Define functions, enqueue them, and run one or more workers on any machine that can reach the database file.
 
 ```python
 from gigq import task, JobQueue, Worker
@@ -23,13 +21,13 @@ greet.submit(queue, name="Alice")
 Worker("jobs.db").start()
 ```
 
-## Key Capabilities
+## Features
 
-- **Retry & crash recovery** — automatic retries with backoff; stuck jobs are reclaimed if a worker crashes
-- **Workflows with `parent_results`** — model pipelines as a DAG; dependent tasks receive parent return values automatically
-- **Concurrent workers** — multiple threads or processes coordinate through the database file
+- **Retry & crash recovery** — failed jobs are retried with backoff; if a worker crashes mid-job, the work is reclaimed automatically
+- **Workflows** — wire tasks into a DAG with `Workflow`; dependent tasks receive parent return values via `parent_results`
+- **Concurrent workers** — multiple threads or processes coordinate through the database file (WAL mode, no external locking)
 - **CLI** — submit jobs, start workers, and inspect queues from the command line
-- **Zero dependencies** — just Python and SQLite, nothing else to install or run
+- **Zero dependencies** — Python and SQLite only
 
 ## Job Lifecycle
 

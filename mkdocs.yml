@@ -87,6 +87,7 @@ nav:
       - Workers: user-guide/workers.md
       - Workflows: user-guide/workflows.md
       - Error Handling: user-guide/error-handling.md
+      - Scheduling Jobs: user-guide/scheduling.md
       - Command Line Interface: user-guide/cli.md
   - Examples:
       - Parallel Tasks: examples/parallel-tasks.md

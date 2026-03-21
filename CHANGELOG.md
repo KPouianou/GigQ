@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-03-21
+
+### Added
+
+- `retry_delay` (seconds) on `Job`, `@task`, and CLI: when a job fails and has retries left, the worker defers the next attempt until `retry_after` (schema migration; default `0` preserves previous behavior). MCP server supports the same option.
+
+### Changed
+
+- Documentation: scheduling guide (cron and long-running Python loops), `llms.txt` / `llms-full.txt` for AI tooling, `GITHUB_TOPICS.md`, and richer PyPI metadata (keywords, classifiers). README and docs cleaned up for clarity.
+
+### Fixed
+
+- Broken documentation link to the GitHub Pages site.
+
 ## [0.5.0] - 2026-03-21
 
 ### Added
@@ -85,7 +99,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Archive processing example
 - Documentation with MkDocs
 
-[Unreleased]: https://github.com/kpouianou/gigq/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/kpouianou/gigq/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/kpouianou/gigq/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/kpouianou/gigq/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/kpouianou/gigq/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/kpouianou/gigq/compare/v0.2.1...v0.3.0

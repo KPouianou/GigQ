@@ -2,6 +2,20 @@
 
 All notable changes to GigQ are documented here. See the full [CHANGELOG.md](https://github.com/kpouianou/gigq/blob/main/CHANGELOG.md) on GitHub for links to diffs.
 
+## 0.5.1 (2026-03-21)
+
+### Added
+
+- `retry_delay` (seconds) on `Job`, `@task`, and CLI: failed jobs with retries remaining can wait before becoming eligible again (MCP server included).
+
+### Changed
+
+- Documentation: scheduling guide, `llms.txt` / `llms-full.txt`, PyPI metadata and keywords, README and docs cleanup.
+
+### Fixed
+
+- Broken link to the hosted documentation site.
+
 ## 0.5.0 (2026-03-21)
 
 ### Added

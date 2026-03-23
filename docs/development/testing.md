@@ -13,7 +13,7 @@ GigQ follows these testing principles:
 
 ## Test Structure
 
-The tests are organized in the `tests/` directory, with the main test file being `test_gigq.py`. Tests are structured using Python's built-in `unittest` framework.
+The tests are organized in the `tests/` directory, split into `unit/` (per-component tests) and `integration/` (end-to-end tests). Tests use both `pytest` and Python's built-in `unittest.TestCase`.
 
 The test suite includes:
 
@@ -28,25 +28,25 @@ The test suite includes:
 To run the complete test suite:
 
 ```bash
-python -m unittest discover tests
+pytest
 ```
 
 To run a specific test file:
 
 ```bash
-python -m unittest tests.test_gigq
+pytest tests/unit/test_job_queue.py
 ```
 
 To run a specific test class:
 
 ```bash
-python -m unittest tests.test_gigq.TestJobQueue
+pytest tests/unit/test_job_queue.py::TestJobQueue
 ```
 
 To run a specific test method:
 
 ```bash
-python -m unittest tests.test_gigq.TestJobQueue.test_submit_job
+pytest tests/unit/test_job_queue.py::TestJobQueue::test_submit_job
 ```
 
 ### Running Tests with Coverage
@@ -54,17 +54,11 @@ python -m unittest tests.test_gigq.TestJobQueue.test_submit_job
 To run tests with coverage reporting:
 
 ```bash
-# Install coverage if you haven't already
-pip install coverage
-
-# Run tests with coverage
-coverage run -m unittest discover tests
-
-# Generate a coverage report
-coverage report -m
+# Run tests with coverage (pytest-cov is used in CI)
+pytest --cov=gigq
 
 # Generate an HTML coverage report
-coverage html
+pytest --cov=gigq --cov-report=html
 ```
 
 The HTML report will be available in the `htmlcov/` directory.
@@ -589,23 +583,22 @@ class TestPerformance(unittest.TestCase):
 
 GigQ uses GitHub Actions for continuous integration. The CI pipeline runs:
 
-1. **Linting**: Checks code style with flake8
+1. **Formatting**: Checks code formatting with Black
 2. **Type Checking**: Verifies type hints with mypy
-3. **Unit Tests**: Runs the test suite
-4. **Coverage**: Ensures code coverage meets thresholds
+3. **Tests**: Runs the full test suite with pytest
+4. **Coverage**: Uploads coverage to Codecov
 
 You can run the same checks locally:
 
 ```bash
-# Run linting
-flake8 gigq tests
+# Check formatting
+black --check gigq tests
 
 # Run type checking
 mypy gigq
 
 # Run tests with coverage
-coverage run -m unittest discover tests
-coverage report -m
+pytest --cov=gigq
 ```
 
 ## Troubleshooting Tests

@@ -127,6 +127,7 @@ GigQ has the following dependency categories:
 - pandas
 - requests
 - schedule
+- scikit-learn
 
 ### Documentation Dependencies [docs]
 
@@ -140,7 +141,7 @@ GigQ has the following dependency categories:
 ### Development Dependencies [dev]
 
 - pytest
-- flake8
+- black
 - coverage
 - mypy
 

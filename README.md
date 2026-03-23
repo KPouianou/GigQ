@@ -91,6 +91,9 @@ The `gigq` command uses `--db` (default `gigq.db`) and a subcommand:
 | `gigq status <id> --show-result` | Inspect a job and its result                             |
 | `gigq stats`                     | Aggregate counts by status                               |
 | `gigq submit`                    | Enqueue by import path `module.function`                 |
+| `gigq cancel <id>`               | Cancel a pending job                                     |
+| `gigq requeue <id>`              | Requeue a failed or timed-out job                        |
+| `gigq clear`                     | Delete completed and cancelled jobs                      |
 
 ## How it works
 

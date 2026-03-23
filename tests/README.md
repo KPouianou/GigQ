@@ -10,110 +10,11 @@
   <a href="https://github.com/kpouianou/gigq/actions/workflows/ci.yml"><img alt="Build Status" src="https://img.shields.io/github/actions/workflow/status/kpouianou/gigq/ci.yml?branch=main&style=flat-square"></a>
 </p>
 
-# GigQ
+# GigQ Tests
 
-GigQ is a lightweight job queue system with SQLite as its backend. It provides a reliable way to manage and execute small jobs ("gigs") locally with atomicity guarantees, particularly suited for processing tasks like data transformations, API calls, batch operations, and complex workflows with dependencies.
-
-## Features
-
-- **Zero External Dependencies**
-
-  - No external packages required
-  - Uses Python's built-in sqlite3 module
-  - Everything needed is bundled with GigQ - no dependency conflicts to worry about
-
-- **Simple Job Definition & Management**
-
-  - Define small jobs with parameters, priority, and basic dependencies
-  - Enable job cancellation and status checking
-
-- **Workflow Support**
-
-  - Create processing pipelines with dependencies between jobs
-  - Fan-out/fan-in patterns for parallel processing
-  - Automatic dependency resolution ensures correct execution order
-  - Simple API for defining job relationships
-
-- **SQLite State Storage**
-
-  - Maintain job states in SQLite (pending, running, completed, failed)
-  - Use transactions to ensure state consistency
-  - Simple, efficient schema design optimized for local usage
-  - Handle SQLite locking appropriately for local concurrency
-
-- **Lightweight Concurrency**
-
-  - Prevent duplicate job execution using SQLite locking mechanisms
-  - Support a modest number of workers processing jobs simultaneously
-  - Implement transaction-based state transitions
-  - Handle worker crashes and job recovery
-
-- **Basic Recovery**
-
-  - Configurable retry for failed jobs with backoff
-  - Timeout detection for hung jobs
-  - Simple but effective error logging
-
-- **CLI Interface**
-  - Submit and monitor jobs
-  - View job queue and history
-  - Simple worker management commands
-
-## Key Examples
-
-### Creating Workflow Pipelines
-
-GigQ makes it easy to create complex job workflows with dependencies:
-
-```python
-# Create a data processing workflow
-workflow = Workflow("data_pipeline")
-
-# Define jobs
-download_job = Job(name="download", function=download_data)
-process_job = Job(name="process", function=process_data)
-analyze_job = Job(name="analyze", function=analyze_data)
-report_job = Job(name="report", function=generate_report)
-notify_job = Job(name="notify", function=send_notification)
-
-# Add jobs with dependencies
-workflow.add_job(download_job)  # No dependencies
-workflow.add_job(process_job, depends_on=[download_job])
-workflow.add_job(analyze_job, depends_on=[process_job])
-workflow.add_job(report_job, depends_on=[analyze_job])
-workflow.add_job(notify_job, depends_on=[report_job])
-
-# Submit all jobs in the workflow
-job_ids = workflow.submit_all(queue)
-```
-
-### Parallel Processing with Fan-out/Fan-in
-
-Easily implement parallel processing patterns:
-
-```python
-# Create a workflow for parallel processing
-workflow = Workflow("parallel_processing")
-
-# Create a job that splits work into chunks
-split_job = Job(name="split_data", function=split_data)
-workflow.add_job(split_job)
-
-# Create multiple worker jobs that process in parallel
-worker_jobs = []
-for i in range(5):
-    worker_job = Job(name=f"process_chunk_{i}", function=process_chunk)
-    workflow.add_job(worker_job, depends_on=[split_job])
-    worker_jobs.append(worker_job)
-
-# Create a job that combines results from all worker jobs
-combine_job = Job(name="combine_results", function=combine_results)
-workflow.add_job(combine_job, depends_on=worker_jobs)
-```
+GigQ is a lightweight job queue system with SQLite as its backend.
 
 ## Project Structure
-
-The GigQ library is organized as follows:
 
 ```
 gigq/
@@ -125,19 +26,26 @@ gigq/
 │   └── user-guide/             # User guides
 │
 ├── examples/                    # Example applications
-│   ├── __init__.py
 │   ├── parallel_tasks.py       # @task decorator + concurrent workers
+│   ├── data_pipeline.py        # Sequential pipeline with parent_results
 │   └── hyperparameter_tuning.py # ML hyperparameter tuning demo
 │
 ├── gigq/                        # Main package code
-│   ├── __init__.py             # Package initialization
-│   ├── core.py                 # Core implementation
+│   ├── __init__.py             # Package initialization and public API
+│   ├── job.py                  # Job class
+│   ├── job_queue.py            # JobQueue class
+│   ├── job_status.py           # JobStatus enum
+│   ├── worker.py               # Worker class
+│   ├── workflow.py             # Workflow class
+│   ├── decorators.py           # @task decorator
+│   ├── db_utils.py             # Thread-local connection management
+│   ├── utils.py                # setup_logging and utilities
 │   ├── cli.py                  # Command-line interface
-│   └── table_formatter.py      # Table formatting utilities
+│   └── table_formatter.py      # Table formatting for CLI output
 │
 ├── tests/                       # Test directory
 │   ├── __init__.py             # Test package initialization
-│   ├── README.md               # Test documentation
+│   ├── README.md               # This file
 │   ├── job_functions.py        # Shared test functions
 │   │
 │   ├── unit/                   # Unit tests
@@ -145,9 +53,12 @@ gigq/
 │   │   ├── run_all.py          # Run all unit tests
 │   │   ├── test_cli.py         # CLI unit tests
 │   │   ├── test_cli_formatter.py  # CLI formatter tests
+│   │   ├── test_db_utils.py    # DB utilities tests
+│   │   ├── test_decorators.py  # @task decorator tests
 │   │   ├── test_job.py         # Job class tests
 │   │   ├── test_job_queue.py   # JobQueue class tests
 │   │   ├── test_table_formatter.py  # Table formatter tests
+│   │   ├── test_thread_local_job_queue.py  # Thread-local connection tests
 │   │   ├── test_worker.py      # Worker class tests
 │   │   └── test_workflow.py    # Workflow class tests
 │   │
@@ -159,10 +70,14 @@ gigq/
 │       ├── test_basic_workflow.py  # Simple workflow tests
 │       ├── test_cli.py         # CLI integration tests
 │       ├── test_concurrent_workers.py  # Multiple workers tests
+│       ├── test_decorator.py   # @task decorator integration tests
 │       ├── test_error_handling.py  # Error handling tests
 │       ├── test_persistence.py  # Persistence tests
+│       ├── test_retry_delay.py  # retry_delay feature tests
 │       ├── test_timeout_handling.py  # Timeout handling tests
-│       └── test_workflow_dependencies.py  # Workflow dependencies tests
+│       ├── test_worker_concurrency.py  # Worker concurrency tests
+│       ├── test_workflow_dependencies.py  # Workflow dependencies tests
+│       └── test_workflow_parent_results.py  # parent_results passing tests
 │
 ├── .github/                     # GitHub configuration
 │   └── workflows/               # GitHub Actions workflows
@@ -172,8 +87,7 @@ gigq/
 ├── LICENSE                      # MIT License
 ├── README.md                    # Project readme
 ├── pyproject.toml               # Project configuration
-├── setup.py                     # Package setup script
-└── py.typed                     # Type hint marker
+└── setup.py                     # Minimal setup.py for backward compatibility
 ```
 
 ## Installation
@@ -185,8 +99,6 @@ Install GigQ from PyPI:
 ```bash
 pip install gigq
 ```
-
-This installs the core package with minimal dependencies.
 
 ### Development Installation
 
@@ -211,7 +123,7 @@ For contributors and developers:
    # For building documentation
    pip install -e ".[docs]"
 
-   # For development (linting, testing)
+   # For development (formatting, testing)
    pip install -e ".[dev]"
 
    # Or install everything at once
@@ -222,158 +134,47 @@ For contributors and developers:
 
 - **Build dependencies**: setuptools (>=42) and wheel
 - **Core dependencies**: Python 3.10+
-- **Examples**: Additional dependencies for running examples include pandas, requests, and schedule
-- **Documentation**: MkDocs and related plugins for building the documentation (mkdocs-material, pymdown-extensions, mkdocstrings[python], etc.)
-- **Development**: Testing and code quality tools (pytest, flake8, coverage, mypy, etc.)
+- **Examples**: pandas, requests, schedule, scikit-learn
+- **Documentation**: mkdocs-material, pymdown-extensions, mkdocstrings[python], etc.
+- **Development**: pytest, black, coverage, mypy
 
-Note: If you're only interested in using the CLI or basic functionality, the standard installation is sufficient.
-
-## Quick Start
-
-### Define and Submit a Job
-
-```python
-from gigq import Job, JobQueue, Worker
-
-# Define a job function
-def process_data(filename, threshold=0.5):
-    # Process some data
-    print(f"Processing {filename} with threshold {threshold}")
-    return {"processed": True, "count": 42}
-
-# Define a job
-job = Job(
-    name="process_data_job",
-    function=process_data,
-    params={"filename": "data.csv", "threshold": 0.7},
-    max_attempts=3,
-    timeout=300
-)
-
-# Create or connect to a job queue
-queue = JobQueue("jobs.db")
-job_id = queue.submit(job)
-
-print(f"Submitted job with ID: {job_id}")
-```
-
-### Start a Worker
-
-```python
-# Start a worker
-worker = Worker("jobs.db")
-worker.start()  # This blocks until the worker is stopped
-```
-
-Or use the CLI:
+## Running Tests
 
 ```bash
-# Start a worker
-gigq --db jobs.db worker
+# Run the full test suite
+pytest
 
-# Process just one job
-gigq --db jobs.db worker --once
+# Run only unit tests
+pytest tests/unit/
+
+# Run only integration tests
+pytest tests/integration/
+
+# Run with coverage
+pytest --cov=gigq
+
+# Run a specific test file
+pytest tests/unit/test_job_queue.py
+
+# Run with verbose output
+pytest -v
 ```
 
-### Check Job Status
-
-```python
-# Check job status
-status = queue.get_status(job_id)
-print(f"Job status: {status['status']}")
-```
-
-Or use the CLI:
+## Check Formatting
 
 ```bash
-gigq --db jobs.db status your-job-id
+black --check gigq tests
 ```
 
-## Creating Workflows
-
-GigQ allows you to create workflows of dependent jobs:
-
-```python
-from gigq import Workflow
-
-# Create a workflow
-workflow = Workflow("data_processing")
-
-# Add jobs with dependencies
-job1 = Job(name="download", function=download_data, params={"url": "https://example.com/data.csv"})
-job2 = Job(name="process", function=process_data, params={"filename": "data.csv"})
-job3 = Job(name="analyze", function=analyze_data, params={"processed_file": "processed.csv"})
-
-# Add jobs to workflow with dependencies
-workflow.add_job(job1)
-workflow.add_job(job2, depends_on=[job1])
-workflow.add_job(job3, depends_on=[job2])
-
-# Submit all jobs in the workflow
-job_ids = workflow.submit_all(queue)
-```
-
-## CLI Usage
-
-GigQ comes with a command-line interface for common operations:
+To auto-fix formatting:
 
 ```bash
-# Submit a job
-gigq submit my_module.my_function --name "My Job" --param "filename=data.csv" --param "threshold=0.7"
-
-# List jobs
-gigq list
-gigq list --status pending
-
-# Check job status
-gigq status your-job-id --show-result
-
-# Cancel a job
-gigq cancel your-job-id
-
-# Requeue a failed job
-gigq requeue your-job-id
-
-# Start a worker
-gigq worker
-
-# Clear completed jobs
-gigq clear
-gigq clear --before 7  # Clear jobs completed more than 7 days ago
+black gigq tests
 ```
 
 ## Examples
 
 See `examples/parallel_tasks.py` for a zero-dep demo or `examples/hyperparameter_tuning.py` for the full showpiece.
-
-## Technical Details
-
-### SQLite Schema
-
-GigQ uses a simple SQLite schema with two main tables:
-
-1. `jobs` - Stores job definitions and current state
-2. `job_executions` - Tracks individual execution attempts
-
-The schema is designed for simplicity and efficiency with appropriate indexes for common operations.
-
-### Concurrency Handling
-
-GigQ uses SQLite's built-in locking mechanisms to ensure safety when multiple workers are running. Each worker claims jobs using an exclusive transaction, preventing duplicate execution.
-
-### Error Handling
-
-Failed jobs can be automatically retried up to a configurable number of times. Detailed error information is stored in the database for debugging. Jobs that exceed their timeout are automatically detected and marked as failed or requeued.
-
-## Development and Contribution
-
-For local development:
-
-1. Clone the repository
-2. Create a virtual environment
-3. Install build dependencies: `pip install setuptools wheel`
-4. Install in development mode: `pip install -e .`
-5. Run tests: `python -m unittest discover tests`
 
 ## License
 

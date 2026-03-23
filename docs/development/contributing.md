@@ -42,7 +42,7 @@ To contribute to GigQ, you'll need:
 
 5. **Install development dependencies**:
    ```bash
-   pip install -r requirements-dev.txt
+   pip install -e ".[dev]"
    ```
 
 ## Development Workflow
@@ -67,11 +67,11 @@ git checkout -b bugfix/issue-number-description
 2. Add tests for any new functionality or bug fixes.
 3. Ensure all tests pass:
    ```bash
-   python -m unittest discover tests
+   pytest
    ```
-4. Run linting to ensure code quality:
+4. Check formatting:
    ```bash
-   flake8 gigq tests
+   black --check gigq tests
    ```
 
 ### Committing Changes
@@ -175,13 +175,13 @@ class TestJobQueue(unittest.TestCase):
 Run the entire test suite:
 
 ```bash
-python -m unittest discover tests
+pytest
 ```
 
 Run a specific test:
 
 ```bash
-python -m unittest tests.test_gigq.TestJobQueue.test_submit_job
+pytest tests/unit/test_job_queue.py::TestJobQueue::test_submit_job
 ```
 
 ## Documentation

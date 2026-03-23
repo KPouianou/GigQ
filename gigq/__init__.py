@@ -21,19 +21,13 @@ _lib_logger = logging.getLogger("gigq")
 _lib_logger.addHandler(logging.NullHandler())
 _lib_logger.propagate = False
 
-# Get version from installed package
+# Get version from installed package metadata
 try:
     from importlib.metadata import version, PackageNotFoundError
 
-    try:
-        __version__ = version("gigq")
-    except PackageNotFoundError:
-        # Package is not installed
-        __version__ = "0.5.1"  # Default development version
-except ImportError:
-    # Fallback for Python < 3.8
-    # Make importlib_metadata optional, only needed for Python < 3.8
-    __version__ = "0.5.1"  # Default development version
+    __version__ = version("gigq")
+except PackageNotFoundError:
+    __version__ = "0.5.1"  # fallback when running from source without installing
 
 # Define what gets imported with "from gigq import *"
 __all__ = [

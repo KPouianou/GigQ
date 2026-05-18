@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -27,24 +27,24 @@ dependencies = []
 
 [project.optional-dependencies]
 examples = [
-    "requests",
-    "pandas",
-    "schedule",
-    "scikit-learn",
+    "requests>=2.31",
+    "pandas>=2.2",
+    "schedule>=1.2",
+    "scikit-learn>=1.4",
 ]
 docs = [
-    "mkdocs-material",
-    "pymdown-extensions",
-    "mkdocstrings[python]",
-    "mkdocs-git-revision-date-localized-plugin",
-    "mkdocs-minify-plugin",
-    "mike",
+    "mkdocs-material>=9.5",
+    "pymdown-extensions>=10.8",
+    "mkdocstrings[python]>=0.25",
+    "mkdocs-git-revision-date-localized-plugin>=1.2",
+    "mkdocs-minify-plugin>=0.7",
+    "mike>=2.0",
 ]
 dev = [
-    "pytest",
-    "black",
-    "coverage",
-    "mypy",
+    "pytest>=8.0",
+    "black>=24.0",
+    "coverage>=7.4",
+    "mypy>=1.10",
 ]
 all = [
     "gigq[examples,docs,dev]",
